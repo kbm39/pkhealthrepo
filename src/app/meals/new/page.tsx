@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { resizeImageToBase64 } from '@/lib/image-utils'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -23,6 +24,7 @@ interface FoodBankItem {
 export default function NewMealPage() {
   const router = useRouter()
   const supabase = createClient()
+  const labelInputRef = useRef<HTMLInputElement>(null)
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
   const [name, setName] = useState('')
@@ -35,12 +37,56 @@ export default function NewMealPage() {
   const [sugar, setSugar] = useState('')
   const [sodium, setSodium] = useState('')
 
+  const [scanningLabel, setScanningLabel] = useState(false)
+  const [labelScanError, setLabelScanError] = useState<string | null>(null)
+
   const [searchTerm, setSearchTerm] = useState('')
   const [foodBank, setFoodBank] = useState<FoodBankItem[]>([])
   const [selectedFoodId, setSelectedFoodId] = useState<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  async function handleLabelPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setLabelScanError(null)
+    setScanningLabel(true)
+
+    try {
+      const { base64, mediaType } = await resizeImageToBase64(file, 1500)
+      const res = await fetch('/api/parse-nutrition-label', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mediaType }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.found) {
+        setLabelScanError(data.error || "Couldn't read that label. Try a clearer photo, or enter it manually.")
+        setScanningLabel(false)
+        if (labelInputRef.current) labelInputRef.current.value = ''
+        return
+      }
+
+      // Only fill fields that were actually read — never overwrite
+      // something the person already typed with a guess.
+      if (data.name && !name) setName(data.name)
+      if (data.calories != null) setCalories(String(data.calories))
+      if (data.protein_g != null) setProtein(String(data.protein_g))
+      if (data.carbs_g != null) setCarbs(String(data.carbs_g))
+      if (data.fat_g != null) setFat(String(data.fat_g))
+      if (data.fiber_g != null) setFiber(String(data.fiber_g))
+      if (data.sugar_g != null) setSugar(String(data.sugar_g))
+      if (data.sodium_mg != null) setSodium(String(data.sodium_mg))
+    } catch {
+      setLabelScanError("Couldn't read that label. Try a clearer photo, or enter it manually.")
+    }
+
+    setScanningLabel(false)
+    if (labelInputRef.current) labelInputRef.current.value = ''
+  }
 
   useEffect(() => {
     async function loadFoodBank() {
@@ -242,6 +288,32 @@ export default function NewMealPage() {
               <option value="snack">Snack</option>
             </select>
           </div>
+
+          {!selectedFoodId && (
+            <div className="rounded-md border border-dashed border-neutral-300 p-3 space-y-2">
+              <input
+                ref={labelInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleLabelPhoto}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => labelInputRef.current?.click()}
+                disabled={scanningLabel}
+                className="w-full rounded-md bg-neutral-100 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-200 disabled:opacity-50"
+              >
+                {scanningLabel ? 'Reading label…' : '📷 Scan nutrition label to auto-fill'}
+              </button>
+              {labelScanError && (
+                <p className="text-xs text-red-600" role="alert">
+                  {labelScanError}
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <div className="flex items-center justify-between mb-1">
