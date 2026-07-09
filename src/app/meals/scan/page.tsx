@@ -80,10 +80,11 @@ export default function ScanBarcodePage() {
       } finally {
         URL.revokeObjectURL(imageUrl)
       }
-    } catch {
+    } catch (err) {
       setDecoding(false)
+      const detail = err instanceof Error ? err.message : String(err)
       setScanError(
-        "Couldn't read a barcode in that photo. Try again with the barcode centered, well-lit, and filling more of the frame."
+        `Couldn't read a barcode in that photo. (Debug info: ${detail}) Try again with the barcode centered, well-lit, and filling more of the frame.`
       )
     } finally {
       // Reset the input so selecting the same file again still fires onChange.
