@@ -50,15 +50,36 @@ export default function ScanBarcodePage() {
     setDecoding(true)
 
     try {
-      // Decoding a single still image is far lighter than continuous
-      // camera-stream scanning, which was crashing Safari on iOS under
-      // sustained frame-by-frame decoding.
-      const { Html5Qrcode } = await import('html5-qrcode')
-      const scanner = new Html5Qrcode('barcode-file-scanner-region', { verbose: false })
-      const decoded = await scanner.scanFile(file, false)
-      setDecoding(false)
-      setBarcode(decoded)
-      await lookupBarcode(decoded)
+      // ZXing decodes directly from an image URL and handles full-resolution
+      // photos more reliably than the html5-qrcode file-scan path, which was
+      // failing to decode even well-framed, well-lit barcode photos.
+      const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import(
+        '@zxing/library'
+      )
+
+      const hints = new Map()
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.ITF,
+      ])
+
+      const reader = new BrowserMultiFormatReader(hints)
+      const imageUrl = URL.createObjectURL(file)
+
+      try {
+        const zxingResult = await reader.decodeFromImageUrl(imageUrl)
+        const decoded = zxingResult.getText()
+        setDecoding(false)
+        setBarcode(decoded)
+        await lookupBarcode(decoded)
+      } finally {
+        URL.revokeObjectURL(imageUrl)
+      }
     } catch {
       setDecoding(false)
       setScanError(
@@ -184,10 +205,6 @@ export default function ScanBarcodePage() {
           capture="environment"
           onChange={handleFileSelected}
           className="hidden"
-        />
-        <div
-          id="barcode-file-scanner-region"
-          style={{ position: 'fixed', top: 0, left: '-9999px', width: '300px', height: '300px' }}
         />
 
         {showCaptureButton && (
