@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -115,6 +116,13 @@ export default async function DashboardPage() {
             {projection.note}
           </p>
         </section>
+
+        <Link
+          href="/meals"
+          className="block text-center rounded-md bg-neutral-900 text-white py-2 text-sm font-medium hover:bg-neutral-800"
+        >
+          Log a meal
+        </Link>
       </div>
     </main>
   )
