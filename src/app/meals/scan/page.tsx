@@ -185,7 +185,10 @@ export default function ScanBarcodePage() {
           onChange={handleFileSelected}
           className="hidden"
         />
-        <div id="barcode-file-scanner-region" className="hidden" />
+        <div
+          id="barcode-file-scanner-region"
+          style={{ position: 'fixed', top: 0, left: '-9999px', width: '300px', height: '300px' }}
+        />
 
         {showCaptureButton && (
           <div className="rounded-lg border border-neutral-200 bg-white p-6 text-center space-y-4">
