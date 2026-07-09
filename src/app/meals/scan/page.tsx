@@ -70,6 +70,18 @@ export default function ScanBarcodePage() {
   const [decoding, setDecoding] = useState(false)
   const [lookupLoading, setLookupLoading] = useState(false)
 
+  // Manual barcode entry — offered when photo decoding fails.
+  const [manualBarcodeEntry, setManualBarcodeEntry] = useState('')
+
+  // Manual nutrition entry — offered when a barcode is known but not found
+  // in Open Food Facts. Saving this attaches the barcode to a new food
+  // record, so scanning the same product again will find it instantly.
+  const [manualName, setManualName] = useState('')
+  const [manualCalories, setManualCalories] = useState('')
+  const [manualProtein, setManualProtein] = useState('')
+  const [manualCarbs, setManualCarbs] = useState('')
+  const [manualFat, setManualFat] = useState('')
+
   const [mealType, setMealType] = useState<MealType>('breakfast')
   const [quantity, setQuantity] = useState('1')
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -79,21 +91,13 @@ export default function ScanBarcodePage() {
     fileInputRef.current?.click()
   }
 
-  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-
+  async function decodeAndLookup(file: File) {
     setScanError(null)
     setResult(null)
     setBarcode(null)
     setDecoding(true)
 
     try {
-      // ZXing decodes directly from an image URL. Two tweaks to make this
-      // more reliable: TRY_HARDER enables ZXing's slower-but-more-thorough
-      // scan mode, and resizing the photo down from iPhone's native
-      // 3000-4000px width to a decoder-friendly size — full-resolution
-      // photos can actually hurt 1D barcode detection rather than help it.
       const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import(
         '@zxing/library'
       )
@@ -118,16 +122,28 @@ export default function ScanBarcodePage() {
       setDecoding(false)
       setBarcode(decoded)
       await lookupBarcode(decoded)
-    } catch (err) {
+    } catch {
       setDecoding(false)
-      const detail = err instanceof Error ? err.message : String(err)
       setScanError(
-        `Couldn't read a barcode in that photo. (Debug info: ${detail}) Try again with the barcode centered, well-lit, and filling more of the frame.`
+        "Couldn't read a barcode in that photo. Try again, or type the barcode number in below."
       )
-    } finally {
-      // Reset the input so selecting the same file again still fires onChange.
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await decodeAndLookup(file)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  async function handleManualBarcodeSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    const code = manualBarcodeEntry.trim()
+    if (!code) return
+    setScanError(null)
+    setBarcode(code)
+    await lookupBarcode(code)
   }
 
   async function lookupBarcode(code: string) {
@@ -147,11 +163,27 @@ export default function ScanBarcodePage() {
     setResult(null)
     setScanError(null)
     setSaveError(null)
-    triggerCapture()
+    setManualBarcodeEntry('')
+    setManualName('')
+    setManualCalories('')
+    setManualProtein('')
+    setManualCarbs('')
+    setManualFat('')
   }
 
-  async function handleLogMeal() {
-    if (!result || !result.found) return
+  async function saveFoodAndLog(foodData: {
+    name: string
+    brand?: string | null
+    servingSize?: string
+    calories: number
+    protein_g?: number | null
+    carbs_g?: number | null
+    fat_g?: number | null
+    fiber_g?: number | null
+    sugar_g?: number | null
+    sodium_mg?: number | null
+    source: 'barcode_openfoodfacts' | 'manual'
+  }) {
     setSaveError(null)
     setSaving(true)
 
@@ -171,18 +203,18 @@ export default function ScanBarcodePage() {
       .from('foods')
       .insert({
         barcode,
-        name: result.name,
-        brand: result.brand,
+        name: foodData.name,
+        brand: foodData.brand ?? null,
         serving_size: 1,
-        serving_unit: result.servingSize || 'serving',
-        calories: result.calories ?? 0,
-        protein_g: result.protein_g,
-        carbs_g: result.carbs_g,
-        fat_g: result.fat_g,
-        fiber_g: result.fiber_g,
-        sugar_g: result.sugar_g,
-        sodium_mg: result.sodium_mg,
-        source: 'barcode_openfoodfacts',
+        serving_unit: foodData.servingSize || 'serving',
+        calories: foodData.calories,
+        protein_g: foodData.protein_g ?? null,
+        carbs_g: foodData.carbs_g ?? null,
+        fat_g: foodData.fat_g ?? null,
+        fiber_g: foodData.fiber_g ?? null,
+        sugar_g: foodData.sugar_g ?? null,
+        sodium_mg: foodData.sodium_mg ?? null,
+        source: foodData.source,
         created_by: user.id,
       })
       .select('id')
@@ -206,17 +238,17 @@ export default function ScanBarcodePage() {
     const { error: logError } = await supabase.from('meal_logs').insert({
       user_id: user.id,
       food_id: newFood.id,
-      food_name_snapshot: result.name,
+      food_name_snapshot: foodData.name,
       meal_type: mealType,
       quantity: qty,
-      calories: (result.calories ?? 0) * qty,
-      protein_g: result.protein_g != null ? result.protein_g * qty : null,
-      carbs_g: result.carbs_g != null ? result.carbs_g * qty : null,
-      fat_g: result.fat_g != null ? result.fat_g * qty : null,
-      fiber_g: result.fiber_g != null ? result.fiber_g * qty : null,
-      sugar_g: result.sugar_g != null ? result.sugar_g * qty : null,
-      sodium_mg: result.sodium_mg != null ? result.sodium_mg * qty : null,
-      entry_method: 'barcode',
+      calories: foodData.calories * qty,
+      protein_g: foodData.protein_g != null ? foodData.protein_g * qty : null,
+      carbs_g: foodData.carbs_g != null ? foodData.carbs_g * qty : null,
+      fat_g: foodData.fat_g != null ? foodData.fat_g * qty : null,
+      fiber_g: foodData.fiber_g != null ? foodData.fiber_g * qty : null,
+      sugar_g: foodData.sugar_g != null ? foodData.sugar_g * qty : null,
+      sodium_mg: foodData.sodium_mg != null ? foodData.sodium_mg * qty : null,
+      entry_method: barcode ? 'barcode' : 'manual',
     })
 
     setSaving(false)
@@ -228,6 +260,36 @@ export default function ScanBarcodePage() {
 
     router.push('/meals')
     router.refresh()
+  }
+
+  async function handleLogMeal() {
+    if (!result || !result.found) return
+    await saveFoodAndLog({
+      name: result.name ?? 'Unknown product',
+      brand: result.brand,
+      servingSize: result.servingSize,
+      calories: result.calories ?? 0,
+      protein_g: result.protein_g,
+      carbs_g: result.carbs_g,
+      fat_g: result.fat_g,
+      fiber_g: result.fiber_g,
+      sugar_g: result.sugar_g,
+      sodium_mg: result.sodium_mg,
+      source: 'barcode_openfoodfacts',
+    })
+  }
+
+  async function handleManualNutritionSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!manualName || !manualCalories) return
+    await saveFoodAndLog({
+      name: manualName,
+      calories: Number(manualCalories),
+      protein_g: manualProtein ? Number(manualProtein) : null,
+      carbs_g: manualCarbs ? Number(manualCarbs) : null,
+      fat_g: manualFat ? Number(manualFat) : null,
+      source: 'manual',
+    })
   }
 
   const showCaptureButton = !barcode && !decoding && !lookupLoading
@@ -257,10 +319,29 @@ export default function ScanBarcodePage() {
             >
               Take photo
             </button>
+
             {scanError && (
-              <p className="text-sm text-red-600" role="alert">
-                {scanError}
-              </p>
+              <div className="space-y-3 pt-2 border-t border-neutral-100">
+                <p className="text-sm text-red-600" role="alert">
+                  {scanError}
+                </p>
+                <form onSubmit={handleManualBarcodeSubmit} className="flex gap-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Type barcode number"
+                    value={manualBarcodeEntry}
+                    onChange={(e) => setManualBarcodeEntry(e.target.value)}
+                    className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
+                  >
+                    Look up
+                  </button>
+                </form>
+              </div>
             )}
           </div>
         )}
@@ -274,16 +355,132 @@ export default function ScanBarcodePage() {
         )}
 
         {!decoding && !lookupLoading && result && !result.found && (
-          <div className="rounded-lg border border-neutral-200 bg-white p-5 text-center space-y-3">
-            <p className="text-sm text-neutral-700">
-              No product found for barcode {barcode}. Try again or use manual entry instead.
-            </p>
-            <button
-              onClick={retake}
-              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
+          <div className="space-y-4">
+            <div className="rounded-lg border border-neutral-200 bg-white p-5 text-center">
+              <p className="text-sm text-neutral-700">
+                No product found for barcode {barcode}. Enter it manually below — this will save
+                it so scanning this barcode again works instantly next time.
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleManualNutritionSubmit}
+              className="rounded-lg border border-neutral-200 bg-white p-5 space-y-4"
             >
-              Take another photo
-            </button>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Food name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Calories
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={manualCalories}
+                    onChange={(e) => setManualCalories(e.target.value)}
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Protein (g)
+                  </label>
+                  <input
+                    type="number"
+                    value={manualProtein}
+                    onChange={(e) => setManualProtein(e.target.value)}
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Carbs (g)
+                  </label>
+                  <input
+                    type="number"
+                    value={manualCarbs}
+                    onChange={(e) => setManualCarbs(e.target.value)}
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Fat (g)
+                  </label>
+                  <input
+                    type="number"
+                    value={manualFat}
+                    onChange={(e) => setManualFat(e.target.value)}
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Meal
+                </label>
+                <select
+                  value={mealType}
+                  onChange={(e) => setMealType(e.target.value as MealType)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                >
+                  <option value="breakfast">Breakfast</option>
+                  <option value="lunch">Lunch</option>
+                  <option value="dinner">Dinner</option>
+                  <option value="snack">Snack</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Quantity (servings)
+                </label>
+                <input
+                  type="number"
+                  step="0.25"
+                  min="0.25"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              {saveError && (
+                <p className="text-sm text-red-600" role="alert">
+                  {saveError}
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={retake}
+                  className="flex-1 rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-50"
+                >
+                  Start over
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex-1 rounded-md bg-neutral-900 text-white text-sm font-medium py-2 hover:bg-neutral-800 disabled:opacity-50"
+                >
+                  {saving ? 'Saving…' : 'Save & log meal'}
+                </button>
+              </div>
+            </form>
           </div>
         )}
 

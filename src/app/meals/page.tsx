@@ -109,9 +109,17 @@ export default async function MealsPage() {
               <ul className="space-y-2">
                 {items.map((m) => (
                   <li key={m.id} className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-900">
-                      {m.food_name_snapshot ?? 'Food'} {m.quantity !== 1 ? `× ${m.quantity}` : ''}
-                    </span>
+                    <div>
+                      <span className="text-neutral-900">
+                        {m.food_name_snapshot ?? 'Food'} {m.quantity !== 1 ? `× ${m.quantity}` : ''}
+                      </span>
+                      <span className="block text-xs text-neutral-400">
+                        {new Date(m.logged_at).toLocaleTimeString([], {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
                     <span className="text-neutral-500">{Math.round(m.calories)} cal</span>
                   </li>
                 ))}
