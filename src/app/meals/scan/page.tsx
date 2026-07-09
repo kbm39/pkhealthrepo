@@ -20,6 +20,45 @@ interface LookupResult {
   sodium_mg?: number | null
 }
 
+/**
+ * Resizes an image file down to a max dimension and returns a data URL.
+ * Full-resolution phone photos (3000-4000px wide) can hurt 1D barcode
+ * decoding more than help it — this brings it down to a size the decoder
+ * handles reliably while preserving enough detail to read the barcode.
+ */
+function resizeImageForDecoding(file: File, maxDimension: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+
+      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height))
+      const width = Math.round(img.width * scale)
+      const height = Math.round(img.height * scale)
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('Could not process image'))
+        return
+      }
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', 0.92))
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Could not load image'))
+    }
+
+    img.src = objectUrl
+  })
+}
+
 export default function ScanBarcodePage() {
   const router = useRouter()
   const supabase = createClient()
@@ -50,9 +89,11 @@ export default function ScanBarcodePage() {
     setDecoding(true)
 
     try {
-      // ZXing decodes directly from an image URL and handles full-resolution
-      // photos more reliably than the html5-qrcode file-scan path, which was
-      // failing to decode even well-framed, well-lit barcode photos.
+      // ZXing decodes directly from an image URL. Two tweaks to make this
+      // more reliable: TRY_HARDER enables ZXing's slower-but-more-thorough
+      // scan mode, and resizing the photo down from iPhone's native
+      // 3000-4000px width to a decoder-friendly size — full-resolution
+      // photos can actually hurt 1D barcode detection rather than help it.
       const { BrowserMultiFormatReader, DecodeHintType, BarcodeFormat } = await import(
         '@zxing/library'
       )
@@ -67,19 +108,16 @@ export default function ScanBarcodePage() {
         BarcodeFormat.CODE_39,
         BarcodeFormat.ITF,
       ])
+      hints.set(DecodeHintType.TRY_HARDER, true)
 
       const reader = new BrowserMultiFormatReader(hints)
-      const imageUrl = URL.createObjectURL(file)
+      const resizedDataUrl = await resizeImageForDecoding(file, 1000)
 
-      try {
-        const zxingResult = await reader.decodeFromImageUrl(imageUrl)
-        const decoded = zxingResult.getText()
-        setDecoding(false)
-        setBarcode(decoded)
-        await lookupBarcode(decoded)
-      } finally {
-        URL.revokeObjectURL(imageUrl)
-      }
+      const zxingResult = await reader.decodeFromImageUrl(resizedDataUrl)
+      const decoded = zxingResult.getText()
+      setDecoding(false)
+      setBarcode(decoded)
+      await lookupBarcode(decoded)
     } catch (err) {
       setDecoding(false)
       const detail = err instanceof Error ? err.message : String(err)
