@@ -43,16 +43,28 @@ export default function ScanBarcodePage() {
     let isMounted = true
 
     async function startScanner() {
-      const { Html5Qrcode } = await import('html5-qrcode')
+      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
       if (!isMounted || !scannerRef.current) return
 
-      const html5QrCode = new Html5Qrcode(scannerRef.current.id)
+      const html5QrCode = new Html5Qrcode(scannerRef.current.id, {
+        // Limiting to common retail barcode formats (not QR/2D codes) cuts
+        // decode work per frame substantially — full-format scanning is
+        // heavy enough to crash Safari's tab process on iPhone under
+        // sustained continuous scanning.
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+        ],
+        verbose: false,
+      })
       html5QrCodeRef.current = html5QrCode
 
       try {
         await html5QrCode.start(
           { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 250, height: 150 } },
+          { fps: 5, qrbox: { width: 250, height: 120 } },
           async (decodedText) => {
             if (!isMounted) return
             setScanning(false)
