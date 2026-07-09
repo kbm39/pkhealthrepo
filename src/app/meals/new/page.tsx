@@ -246,7 +246,7 @@ export default function NewMealPage() {
 
         {foodBank.length > 0 && (
           <section className="rounded-lg border border-neutral-200 bg-white p-4">
-            <h2 className="text-sm font-medium text-neutral-500 mb-2">
+            <h2 className="text-sm font-medium text-neutral-700 mb-2">
               Your food bank — tap to re-log
             </h2>
             <input
@@ -322,7 +322,7 @@ export default function NewMealPage() {
                 <button
                   type="button"
                   onClick={clearSelection}
-                  className="text-xs text-neutral-500 underline"
+                  className="text-xs text-neutral-700 underline"
                 >
                   Clear / enter new food
                 </button>

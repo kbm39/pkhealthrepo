@@ -70,31 +70,31 @@ export default async function MealsPage() {
         </div>
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-500 mb-2">Today&apos;s totals</h2>
+          <h2 className="text-sm font-medium text-neutral-700 mb-2">Today&apos;s totals</h2>
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
               <p className="text-lg font-semibold text-neutral-900">
                 {Math.round(totals.calories)}
               </p>
-              <p className="text-xs text-neutral-500">cal</p>
+              <p className="text-xs text-neutral-700">cal</p>
             </div>
             <div>
               <p className="text-lg font-semibold text-neutral-900">
                 {Math.round(totals.protein_g)}g
               </p>
-              <p className="text-xs text-neutral-500">protein</p>
+              <p className="text-xs text-neutral-700">protein</p>
             </div>
             <div>
               <p className="text-lg font-semibold text-neutral-900">
                 {Math.round(totals.carbs_g)}g
               </p>
-              <p className="text-xs text-neutral-500">carbs</p>
+              <p className="text-xs text-neutral-700">carbs</p>
             </div>
             <div>
               <p className="text-lg font-semibold text-neutral-900">
                 {Math.round(totals.fat_g)}g
               </p>
-              <p className="text-xs text-neutral-500">fat</p>
+              <p className="text-xs text-neutral-700">fat</p>
             </div>
           </div>
         </section>
@@ -105,7 +105,7 @@ export default async function MealsPage() {
 
           return (
             <section key={type} className="rounded-lg border border-neutral-200 bg-white p-5">
-              <h2 className="text-sm font-medium text-neutral-500 mb-3 capitalize">{type}</h2>
+              <h2 className="text-sm font-medium text-neutral-700 mb-3 capitalize">{type}</h2>
               <ul className="space-y-2">
                 {items.map((m) => (
                   <li key={m.id} className="flex items-center justify-between text-sm">
@@ -113,14 +113,14 @@ export default async function MealsPage() {
                       <span className="text-neutral-900">
                         {m.food_name_snapshot ?? 'Food'} {m.quantity !== 1 ? `× ${m.quantity}` : ''}
                       </span>
-                      <span className="block text-xs text-neutral-400">
+                      <span className="block text-xs text-neutral-600">
                         {new Date(m.logged_at).toLocaleTimeString([], {
                           hour: 'numeric',
                           minute: '2-digit',
                         })}
                       </span>
                     </div>
-                    <span className="text-neutral-500">{Math.round(m.calories)} cal</span>
+                    <span className="text-neutral-700">{Math.round(m.calories)} cal</span>
                   </li>
                 ))}
               </ul>
@@ -129,7 +129,7 @@ export default async function MealsPage() {
         })}
 
         {mealsList.length === 0 && (
-          <p className="text-sm text-neutral-500 text-center py-8">
+          <p className="text-sm text-neutral-700 text-center py-8">
             No meals logged today yet. Tap &quot;+ Add&quot; to log your first meal.
           </p>
         )}

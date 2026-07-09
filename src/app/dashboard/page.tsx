@@ -78,14 +78,14 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-500 mb-1">
+          <h2 className="text-sm font-medium text-neutral-700 mb-1">
             Daily calorie target
           </h2>
           <p className="text-3xl font-semibold text-neutral-900">
             {dailyTarget.dailyTarget.toLocaleString()}{' '}
-            <span className="text-base font-normal text-neutral-500">cal/day</span>
+            <span className="text-base font-normal text-neutral-700">cal/day</span>
           </p>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-neutral-700 mt-1">
             TDEE: {Math.round(dailyTarget.tdee).toLocaleString()} cal/day
           </p>
           {dailyTarget.note && (
@@ -96,23 +96,23 @@ export default async function DashboardPage() {
         </section>
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-neutral-500 mb-1">
+          <h2 className="text-sm font-medium text-neutral-700 mb-1">
             Goal weight timeline
           </h2>
           {projection.projectedDays !== null ? (
             <>
               <p className="text-3xl font-semibold text-neutral-900">
                 {projection.projectedDays}{' '}
-                <span className="text-base font-normal text-neutral-500">days</span>
+                <span className="text-base font-normal text-neutral-700">days</span>
               </p>
-              <p className="text-xs text-neutral-500 mt-1">
+              <p className="text-xs text-neutral-700 mt-1">
                 Projected: {projection.projectedDate} · {projection.poundsToLose} lbs to go
               </p>
             </>
           ) : (
             <p className="text-sm text-neutral-700">Not enough data to project yet.</p>
           )}
-          <p className="text-xs text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-md px-3 py-2 mt-3">
+          <p className="text-xs text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-md px-3 py-2 mt-3">
             {projection.note}
           </p>
         </section>

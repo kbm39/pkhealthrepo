@@ -82,7 +82,7 @@ export default function OnboardingPage() {
         <h1 className="text-2xl font-semibold text-neutral-900 mb-1">
           Set up your profile
         </h1>
-        <p className="text-sm text-neutral-500 mb-6">
+        <p className="text-sm text-neutral-700 mb-6">
           This powers your daily calorie target and goal timeline.
         </p>
 

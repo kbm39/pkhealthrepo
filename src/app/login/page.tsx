@@ -40,7 +40,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-semibold text-neutral-900 mb-1">
           {mode === 'sign_in' ? 'Sign in' : 'Create your account'}
         </h1>
-        <p className="text-sm text-neutral-500 mb-6">
+        <p className="text-sm text-neutral-700 mb-6">
           Track sleep, food, training, and vitals in one place.
         </p>
 

@@ -347,11 +347,11 @@ export default function ScanBarcodePage() {
         )}
 
         {decoding && (
-          <p className="text-sm text-neutral-500 text-center py-8">Reading barcode…</p>
+          <p className="text-sm text-neutral-700 text-center py-8">Reading barcode…</p>
         )}
 
         {!decoding && lookupLoading && (
-          <p className="text-sm text-neutral-500 text-center py-8">Looking up product…</p>
+          <p className="text-sm text-neutral-700 text-center py-8">Looking up product…</p>
         )}
 
         {!decoding && !lookupLoading && result && !result.found && (
@@ -488,32 +488,32 @@ export default function ScanBarcodePage() {
           <div className="space-y-4">
             <div className="rounded-lg border border-neutral-200 bg-white p-5">
               <h2 className="font-semibold text-neutral-900">{result.name}</h2>
-              {result.brand && <p className="text-sm text-neutral-500">{result.brand}</p>}
-              <p className="text-xs text-neutral-400 mt-1">Per {result.servingSize}</p>
+              {result.brand && <p className="text-sm text-neutral-700">{result.brand}</p>}
+              <p className="text-xs text-neutral-600 mt-1">Per {result.servingSize}</p>
               <div className="grid grid-cols-4 gap-2 text-center mt-3">
                 <div>
                   <p className="text-lg font-semibold text-neutral-900">
                     {Math.round(result.calories ?? 0)}
                   </p>
-                  <p className="text-xs text-neutral-500">cal</p>
+                  <p className="text-xs text-neutral-700">cal</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-neutral-900">
                     {result.protein_g != null ? Math.round(result.protein_g) : '—'}g
                   </p>
-                  <p className="text-xs text-neutral-500">protein</p>
+                  <p className="text-xs text-neutral-700">protein</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-neutral-900">
                     {result.carbs_g != null ? Math.round(result.carbs_g) : '—'}g
                   </p>
-                  <p className="text-xs text-neutral-500">carbs</p>
+                  <p className="text-xs text-neutral-700">carbs</p>
                 </div>
                 <div>
                   <p className="text-lg font-semibold text-neutral-900">
                     {result.fat_g != null ? Math.round(result.fat_g) : '—'}g
                   </p>
-                  <p className="text-xs text-neutral-500">fat</p>
+                  <p className="text-xs text-neutral-700">fat</p>
                 </div>
               </div>
             </div>
