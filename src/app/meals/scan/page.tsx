@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -23,13 +23,12 @@ interface LookupResult {
 export default function ScanBarcodePage() {
   const router = useRouter()
   const supabase = createClient()
-  const scannerRef = useRef<HTMLDivElement>(null)
-  const html5QrCodeRef = useRef<import('html5-qrcode').Html5Qrcode | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [scanning, setScanning] = useState(true)
   const [barcode, setBarcode] = useState<string | null>(null)
   const [result, setResult] = useState<LookupResult | null>(null)
-  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [decoding, setDecoding] = useState(false)
   const [lookupLoading, setLookupLoading] = useState(false)
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
@@ -37,61 +36,39 @@ export default function ScanBarcodePage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    if (!scanning) return
+  function triggerCapture() {
+    fileInputRef.current?.click()
+  }
 
-    let isMounted = true
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
 
-    async function startScanner() {
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
-      if (!isMounted || !scannerRef.current) return
+    setScanError(null)
+    setResult(null)
+    setBarcode(null)
+    setDecoding(true)
 
-      const html5QrCode = new Html5Qrcode(scannerRef.current.id, {
-        // Limiting to common retail barcode formats (not QR/2D codes) cuts
-        // decode work per frame substantially — full-format scanning is
-        // heavy enough to crash Safari's tab process on iPhone under
-        // sustained continuous scanning.
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E,
-        ],
-        verbose: false,
-      })
-      html5QrCodeRef.current = html5QrCode
-
-      try {
-        await html5QrCode.start(
-          { facingMode: 'environment' },
-          { fps: 5, qrbox: { width: 250, height: 120 } },
-          async (decodedText) => {
-            if (!isMounted) return
-            setScanning(false)
-            setBarcode(decodedText)
-            await html5QrCode.stop().catch(() => {})
-            await lookupBarcode(decodedText)
-          },
-          () => {
-            // Ignore per-frame "not found" scan errors — expected while aiming the camera.
-          }
-        )
-      } catch {
-        if (isMounted) {
-          setCameraError(
-            'Could not access the camera. Make sure you\'ve granted camera permission, or try manual entry instead.'
-          )
-        }
-      }
+    try {
+      // Decoding a single still image is far lighter than continuous
+      // camera-stream scanning, which was crashing Safari on iOS under
+      // sustained frame-by-frame decoding.
+      const { Html5Qrcode } = await import('html5-qrcode')
+      const scanner = new Html5Qrcode('barcode-file-scanner-region', { verbose: false })
+      const decoded = await scanner.scanFile(file, false)
+      setDecoding(false)
+      setBarcode(decoded)
+      await lookupBarcode(decoded)
+    } catch {
+      setDecoding(false)
+      setScanError(
+        "Couldn't read a barcode in that photo. Try again with the barcode centered, well-lit, and filling more of the frame."
+      )
+    } finally {
+      // Reset the input so selecting the same file again still fires onChange.
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
-
-    startScanner()
-
-    return () => {
-      isMounted = false
-      html5QrCodeRef.current?.stop().catch(() => {})
-    }
-  }, [scanning])
+  }
 
   async function lookupBarcode(code: string) {
     setLookupLoading(true)
@@ -105,11 +82,12 @@ export default function ScanBarcodePage() {
     setLookupLoading(false)
   }
 
-  function rescan() {
+  function retake() {
     setBarcode(null)
     setResult(null)
+    setScanError(null)
     setSaveError(null)
-    setScanning(true)
+    triggerCapture()
   }
 
   async function handleLogMeal() {
@@ -192,44 +170,65 @@ export default function ScanBarcodePage() {
     router.refresh()
   }
 
+  const showCaptureButton = !barcode && !decoding && !lookupLoading
+
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-sm space-y-6">
         <h1 className="text-2xl font-semibold text-neutral-900">Scan barcode</h1>
 
-        {scanning && (
-          <div className="rounded-lg border border-neutral-200 bg-white p-4">
-            <div id="barcode-scanner-region" ref={scannerRef} className="w-full rounded-md overflow-hidden" />
-            <p className="text-xs text-neutral-500 mt-3 text-center">
-              Point your camera at a product barcode.
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleFileSelected}
+          className="hidden"
+        />
+        <div id="barcode-file-scanner-region" className="hidden" />
+
+        {showCaptureButton && (
+          <div className="rounded-lg border border-neutral-200 bg-white p-6 text-center space-y-4">
+            <p className="text-sm text-neutral-600">
+              Take a photo of a product barcode — center it and get it well-lit.
             </p>
-            {cameraError && (
-              <p className="text-sm text-red-600 mt-3" role="alert">
-                {cameraError}
+            <button
+              onClick={triggerCapture}
+              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-6 py-3 hover:bg-neutral-800"
+            >
+              Take photo
+            </button>
+            {scanError && (
+              <p className="text-sm text-red-600" role="alert">
+                {scanError}
               </p>
             )}
           </div>
         )}
 
-        {!scanning && lookupLoading && (
+        {decoding && (
+          <p className="text-sm text-neutral-500 text-center py-8">Reading barcode…</p>
+        )}
+
+        {!decoding && lookupLoading && (
           <p className="text-sm text-neutral-500 text-center py-8">Looking up product…</p>
         )}
 
-        {!scanning && !lookupLoading && result && !result.found && (
+        {!decoding && !lookupLoading && result && !result.found && (
           <div className="rounded-lg border border-neutral-200 bg-white p-5 text-center space-y-3">
             <p className="text-sm text-neutral-700">
-              No product found for barcode {barcode}. Try manual entry instead.
+              No product found for barcode {barcode}. Try again or use manual entry instead.
             </p>
             <button
-              onClick={rescan}
+              onClick={retake}
               className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
             >
-              Scan again
+              Take another photo
             </button>
           </div>
         )}
 
-        {!scanning && !lookupLoading && result?.found && (
+        {!decoding && !lookupLoading && result?.found && (
           <div className="space-y-4">
             <div className="rounded-lg border border-neutral-200 bg-white p-5">
               <h2 className="font-semibold text-neutral-900">{result.name}</h2>
@@ -300,10 +299,10 @@ export default function ScanBarcodePage() {
 
               <div className="flex gap-2">
                 <button
-                  onClick={rescan}
+                  onClick={retake}
                   className="flex-1 rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-50"
                 >
-                  Scan again
+                  Retake
                 </button>
                 <button
                   onClick={handleLogMeal}
