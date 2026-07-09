@@ -53,12 +53,20 @@ export default async function MealsPage() {
       <div className="mx-auto w-full max-w-md space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900">Today&apos;s Meals</h1>
-          <Link
-            href="/meals/new"
-            className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
-          >
-            + Add
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/meals/scan"
+              className="rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium px-4 py-2 hover:bg-neutral-50"
+            >
+              Scan
+            </Link>
+            <Link
+              href="/meals/new"
+              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
+            >
+              + Add
+            </Link>
+          </div>
         </div>
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">
