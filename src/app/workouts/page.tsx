@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import WorkoutSetRow from '@/components/WorkoutSetRow'
 
 function startOfTodayISO(): string {
   const d = new Date()
@@ -101,16 +102,18 @@ export default async function WorkoutsPage() {
                 {Array.from(byExercise.entries()).map(([exerciseName, exSets]) => (
                   <div key={exerciseName}>
                     <p className="text-sm font-medium text-neutral-900">{exerciseName}</p>
-                    <ul className="text-xs text-neutral-700 space-y-0.5 mt-1">
+                    <ul className="space-y-1 mt-1">
                       {exSets
                         .sort((a, b) => a.set_number - b.set_number)
                         .map((set) => (
-                          <li key={set.id}>
-                            Set {set.set_number}: {set.weight_lbs ?? '—'} lbs × {set.reps ?? '—'}{' '}
-                            reps
-                            {set.calories_burned != null &&
-                              ` · ${Math.round(set.calories_burned)} cal`}
-                          </li>
+                          <WorkoutSetRow
+                            key={set.id}
+                            id={set.id}
+                            setNumber={set.set_number}
+                            weightLbs={set.weight_lbs}
+                            reps={set.reps}
+                            caloriesBurned={set.calories_burned}
+                          />
                         ))}
                     </ul>
                   </div>

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import MealActions from '@/components/MealActions'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
 
@@ -114,7 +115,7 @@ export default async function MealsPage() {
               <h2 className="text-sm font-medium text-neutral-700 mb-3 capitalize">{type}</h2>
               <ul className="space-y-2">
                 {items.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between text-sm">
+                  <li key={m.id} className="flex items-center justify-between text-sm gap-2">
                     <div>
                       <span className="text-neutral-900">
                         {m.food_name_snapshot ?? 'Food'} {m.quantity !== 1 ? `× ${m.quantity}` : ''}
@@ -126,7 +127,10 @@ export default async function MealsPage() {
                         })}
                       </span>
                     </div>
-                    <span className="text-neutral-700">{Math.round(m.calories)} cal</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-neutral-700">{Math.round(m.calories)} cal</span>
+                      <MealActions mealLogId={m.id} />
+                    </div>
                   </li>
                 ))}
               </ul>

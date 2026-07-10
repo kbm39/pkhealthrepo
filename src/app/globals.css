@@ -12,15 +12,18 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Force consistent light-theme form fields regardless of system dark mode —
+   the app's design (white cards, dark text) hasn't been built with a dark
+   variant, so letting the OS override colors here makes text unreadable. */
+input,
+textarea,
+select {
+  background-color: #ffffff;
+  color: #171717;
 }
