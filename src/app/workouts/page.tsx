@@ -46,25 +46,46 @@ export default async function WorkoutsPage() {
     return sum + sets.length
   }, 0)
 
+  const totalVolumeLbs = logs.reduce((sum, log) => {
+    const sets = Array.isArray(log.workout_sets) ? log.workout_sets : []
+    return (
+      sum + sets.reduce((s, set) => s + (set.weight_lbs ?? 0) * (set.reps ?? 0), 0)
+    )
+  }, 0)
+
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-md space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900">Today&apos;s Workout</h1>
-          <Link
-            href="/workouts/new"
-            className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
-          >
-            + Log
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/workouts/trends"
+              className="rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium px-4 py-2 hover:bg-neutral-50"
+            >
+              Trends
+            </Link>
+            <Link
+              href="/workouts/new"
+              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
+            >
+              + Log
+            </Link>
+          </div>
         </div>
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">
           <h2 className="text-sm font-medium text-neutral-700 mb-2">Today&apos;s totals</h2>
-          <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="text-lg font-semibold text-neutral-900">{totalSets}</p>
               <p className="text-xs text-neutral-700">sets</p>
+            </div>
+            <div>
+              <p className="text-lg font-semibold text-neutral-900">
+                {Math.round(totalVolumeLbs).toLocaleString()}
+              </p>
+              <p className="text-xs text-neutral-700">lbs lifted</p>
             </div>
             <div>
               <p className="text-lg font-semibold text-neutral-900">
