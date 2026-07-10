@@ -50,6 +50,13 @@ export default function NewWorkoutPage() {
   const [pendingSets, setPendingSets] = useState<PendingSet[]>([])
   const [notes, setNotes] = useState('')
 
+  const [showAddExercise, setShowAddExercise] = useState(false)
+  const [newExerciseName, setNewExerciseName] = useState('')
+  const [newExerciseCategory, setNewExerciseCategory] = useState('other')
+  const [newExerciseMet, setNewExerciseMet] = useState('4.0')
+  const [addExerciseError, setAddExerciseError] = useState<string | null>(null)
+  const [addingExercise, setAddingExercise] = useState(false)
+
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -82,6 +89,39 @@ export default function NewWorkoutPage() {
   const filteredExercises = exercises.filter((ex) =>
     ex.name.toLowerCase().includes(exerciseSearch.toLowerCase())
   )
+
+  async function handleAddExercise(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newExerciseName.trim()) return
+    setAddExerciseError(null)
+    setAddingExercise(true)
+
+    const metValue = newExerciseMet ? Number(newExerciseMet) : null
+
+    const { data: newExercise, error } = await supabase
+      .from('exercises')
+      .insert({
+        name: newExerciseName.trim(),
+        category: newExerciseCategory,
+        met_value: metValue,
+      })
+      .select('id, name, category, met_value')
+      .single()
+
+    setAddingExercise(false)
+
+    if (error || !newExercise) {
+      setAddExerciseError(error?.message ?? 'Could not add exercise.')
+      return
+    }
+
+    setExercises((prev) => [...prev, newExercise].sort((a, b) => a.name.localeCompare(b.name)))
+    setSelectedExercise(newExercise)
+    setExerciseSearch('')
+    setShowAddExercise(false)
+    setNewExerciseName('')
+    setNewExerciseMet('4.0')
+  }
 
   function addSet() {
     if (!selectedExercise || !weight || !reps) return
@@ -222,6 +262,92 @@ export default function NewWorkoutPage() {
                     <li className="px-3 py-2 text-sm text-neutral-700">No matches</li>
                   )}
                 </ul>
+
+                {!showAddExercise ? (
+                  <button
+                    onClick={() => {
+                      setNewExerciseName(exerciseSearch)
+                      setShowAddExercise(true)
+                    }}
+                    className="mt-2 text-sm text-neutral-700 underline underline-offset-2"
+                  >
+                    Can&apos;t find it? Add a new exercise
+                  </button>
+                ) : (
+                  <form
+                    onSubmit={handleAddExercise}
+                    className="mt-2 border border-neutral-200 rounded-md p-3 space-y-3"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Exercise name
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newExerciseName}
+                        onChange={(e) => setNewExerciseName(e.target.value)}
+                        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Category
+                      </label>
+                      <select
+                        value={newExerciseCategory}
+                        onChange={(e) => setNewExerciseCategory(e.target.value)}
+                        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      >
+                        <option value="chest">Chest</option>
+                        <option value="back">Back</option>
+                        <option value="legs">Legs</option>
+                        <option value="shoulders">Shoulders</option>
+                        <option value="arms">Arms</option>
+                        <option value="core">Core</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-neutral-700 mb-1">
+                        Intensity (MET value)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={newExerciseMet}
+                        onChange={(e) => setNewExerciseMet(e.target.value)}
+                        className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                      <p className="text-xs text-neutral-600 mt-1">
+                        Used to estimate calories burned. 3.5 for light effort, 5 for moderate
+                        compound lifts, 6+ for heavy/explosive movements — the default (4.0) is a
+                        reasonable middle ground if unsure.
+                      </p>
+                    </div>
+                    {addExerciseError && (
+                      <p className="text-sm text-red-600" role="alert">
+                        {addExerciseError}
+                      </p>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddExercise(false)}
+                        className="flex-1 rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={addingExercise}
+                        className="flex-1 rounded-md bg-neutral-900 text-white text-sm font-medium py-2 hover:bg-neutral-800 disabled:opacity-50"
+                      >
+                        {addingExercise ? 'Adding…' : 'Add & select'}
+                      </button>
+                    </div>
+                  </form>
+                )}
               </>
             )}
           </div>
