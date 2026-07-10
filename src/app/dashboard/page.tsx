@@ -117,12 +117,20 @@ export default async function DashboardPage() {
           </p>
         </section>
 
-        <Link
-          href="/meals"
-          className="block text-center rounded-md bg-neutral-900 text-white py-2 text-sm font-medium hover:bg-neutral-800"
-        >
-          Log a meal
-        </Link>
+        <div className="flex gap-2">
+          <Link
+            href="/meals"
+            className="flex-1 block text-center rounded-md bg-neutral-900 text-white py-2 text-sm font-medium hover:bg-neutral-800"
+          >
+            Log a meal
+          </Link>
+          <Link
+            href="/workouts"
+            className="flex-1 block text-center rounded-md border border-neutral-300 text-neutral-700 py-2 text-sm font-medium hover:bg-neutral-50"
+          >
+            Log a workout
+          </Link>
+        </div>
       </div>
     </main>
   )
