@@ -6,6 +6,7 @@ import {
   projectDaysToGoal,
   type ActivityLevel,
 } from '@/lib/calc/calories'
+import HomeLink from '@/components/HomeLink'
 
 // Default weekly rate target — adjustable per-goal in a future settings screen.
 const DEFAULT_WEEKLY_RATE_LBS = 2
@@ -75,6 +76,7 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-md space-y-6">
+        <HomeLink />
         <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">

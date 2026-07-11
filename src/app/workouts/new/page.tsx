@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import HomeLink from '@/components/HomeLink'
 
 interface Exercise {
   id: string
@@ -208,6 +209,7 @@ export default function NewWorkoutPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-sm space-y-6">
+        <HomeLink />
         <h1 className="text-2xl font-semibold text-neutral-900">Log workout</h1>
 
         {!bodyWeightLbs && (

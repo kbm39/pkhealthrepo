@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import ExerciseTrendChart from '@/components/ExerciseTrendChart'
+import HomeLink from '@/components/HomeLink'
 
 interface RawSetRow {
   weight_lbs: number | null
@@ -71,6 +72,7 @@ export default async function WorkoutTrendsPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-md space-y-6">
+        <HomeLink />
         <h1 className="text-2xl font-semibold text-neutral-900">Exercise Trends</h1>
 
         {exerciseTrends.length === 0 && (

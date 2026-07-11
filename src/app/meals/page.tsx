@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import MealActions from '@/components/MealActions'
+import HomeLink from '@/components/HomeLink'
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
 
@@ -52,6 +53,7 @@ export default async function MealsPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-md space-y-6">
+        <HomeLink />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900">Today&apos;s Meals</h1>
           <div className="flex gap-2 flex-wrap justify-end">

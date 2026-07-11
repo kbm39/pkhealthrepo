@@ -72,7 +72,7 @@ export default function OnboardingPage() {
       return
     }
 
-    router.push('/dashboard')
+    router.push('/home')
     router.refresh()
   }
 
@@ -181,7 +181,7 @@ export default function OnboardingPage() {
             disabled={loading}
             className="w-full rounded-md bg-neutral-900 text-white py-2 text-sm font-medium hover:bg-neutral-800 disabled:opacity-50"
           >
-            {loading ? 'Saving…' : 'Continue to dashboard'}
+            {loading ? 'Saving…' : 'Continue'}
           </button>
         </form>
       </div>

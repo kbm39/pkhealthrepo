@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import WeightTrendChart from '@/components/WeightTrendChart'
 import BodyMetricActions from '@/components/BodyMetricActions'
+import HomeLink from '@/components/HomeLink'
 
 export default async function BodyMetricsPage() {
   const supabase = await createClient()
@@ -47,6 +48,7 @@ export default async function BodyMetricsPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-md space-y-6">
+        <HomeLink />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900">Body Metrics</h1>
           <Link

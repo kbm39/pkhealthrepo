@@ -30,7 +30,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push(mode === 'sign_up' ? '/onboarding' : '/dashboard')
+    router.push(mode === 'sign_up' ? '/onboarding' : '/home')
     router.refresh()
   }
 
