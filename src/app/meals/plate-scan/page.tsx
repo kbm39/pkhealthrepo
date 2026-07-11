@@ -1,10 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import HomeLink from '@/components/HomeLink'
+import DietCheckBadge from '@/components/DietCheckBadge'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -31,6 +32,24 @@ export default function PlateScanPage() {
   const [mealType, setMealType] = useState<MealType>('breakfast')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const [dietType, setDietType] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadDiet() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('diet_type')
+        .eq('id', user.id)
+        .single()
+      if (data?.diet_type) setDietType(data.diet_type)
+    }
+    loadDiet()
+  }, [supabase])
 
   function triggerCapture() {
     fileInputRef.current?.click()
@@ -286,6 +305,16 @@ export default function PlateScanPage() {
                           />
                         </div>
                       </div>
+                      {dietType && item.include && (
+                        <DietCheckBadge
+                          dietType={dietType}
+                          foodName={item.name}
+                          calories={item.calories}
+                          protein_g={item.protein_g}
+                          carbs_g={item.carbs_g}
+                          fat_g={item.fat_g}
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

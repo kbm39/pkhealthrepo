@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
+import DietCheckBadge from '@/components/DietCheckBadge'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -87,6 +88,24 @@ export default function ScanBarcodePage() {
   const [quantity, setQuantity] = useState('1')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const [dietType, setDietType] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function loadDiet() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('diet_type')
+        .eq('id', user.id)
+        .single()
+      if (data?.diet_type) setDietType(data.diet_type)
+    }
+    loadDiet()
+  }, [supabase])
 
   function triggerCapture() {
     fileInputRef.current?.click()
@@ -518,6 +537,20 @@ export default function ScanBarcodePage() {
                   <p className="text-xs text-neutral-700">fat</p>
                 </div>
               </div>
+              {dietType && (
+                <div className="mt-3">
+                  <DietCheckBadge
+                    dietType={dietType}
+                    foodName={result.name ?? 'Unknown product'}
+                    calories={result.calories}
+                    protein_g={result.protein_g}
+                    carbs_g={result.carbs_g}
+                    fat_g={result.fat_g}
+                    fiber_g={result.fiber_g}
+                    sugar_g={result.sugar_g}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="rounded-lg border border-neutral-200 bg-white p-5 space-y-4">

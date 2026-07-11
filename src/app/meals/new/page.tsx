@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import HomeLink from '@/components/HomeLink'
+import DietCheckBadge from '@/components/DietCheckBadge'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -47,6 +48,9 @@ export default function NewMealPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const [dietType, setDietType] = useState<string | null>(null)
+  const [dietCheckNonce, setDietCheckNonce] = useState(0)
 
   async function handleLabelPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -95,6 +99,13 @@ export default function NewMealPage() {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('diet_type')
+        .eq('id', user.id)
+        .single()
+      if (profile?.diet_type) setDietType(profile.diet_type)
 
       const { data } = await supabase
         .from('user_food_bank')
@@ -430,6 +441,32 @@ export default function NewMealPage() {
               />
             </div>
           </div>
+
+          {dietType && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setDietCheckNonce((n) => n + 1)}
+                disabled={!name || !calories}
+                className="text-sm text-neutral-700 underline underline-offset-2 disabled:opacity-50 disabled:no-underline"
+              >
+                Check fit against {dietType}
+              </button>
+              {dietCheckNonce > 0 && name && calories && (
+                <DietCheckBadge
+                  key={dietCheckNonce}
+                  dietType={dietType}
+                  foodName={name}
+                  calories={Number(calories)}
+                  protein_g={protein ? Number(protein) : null}
+                  carbs_g={carbs ? Number(carbs) : null}
+                  fat_g={fat ? Number(fat) : null}
+                  fiber_g={fiber ? Number(fiber) : null}
+                  sugar_g={sugar ? Number(sugar) : null}
+                />
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-600" role="alert">

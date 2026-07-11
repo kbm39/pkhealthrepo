@@ -63,6 +63,13 @@ export default async function HomePage() {
         <p className="text-xs text-neutral-600 text-center pt-4">
           More sections — vitals, medications, device sync — coming soon.
         </p>
+
+        <Link
+          href="/settings"
+          className="block text-center text-sm text-neutral-700 underline underline-offset-2"
+        >
+          Settings
+        </Link>
       </div>
     </main>
   )
