@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
+import { nowDateTimeLocalValue } from '@/components/LocalDateTime'
 import DietCheckBadge from '@/components/DietCheckBadge'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
@@ -85,6 +86,7 @@ export default function ScanBarcodePage() {
   const [manualFat, setManualFat] = useState('')
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
+  const [loggedAt, setLoggedAt] = useState(nowDateTimeLocalValue())
   const [quantity, setQuantity] = useState('1')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -261,6 +263,7 @@ export default function ScanBarcodePage() {
       food_name_snapshot: foodData.name,
       meal_type: mealType,
       quantity: qty,
+      logged_at: new Date(loggedAt).toISOString(),
       calories: foodData.calories * qty,
       protein_g: foodData.protein_g != null ? foodData.protein_g * qty : null,
       carbs_g: foodData.carbs_g != null ? foodData.carbs_g * qty : null,
@@ -467,6 +470,18 @@ export default function ScanBarcodePage() {
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Date &amp; time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={loggedAt}
+                  onChange={(e) => setLoggedAt(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
                   Quantity (servings)
                 </label>
                 <input
@@ -566,6 +581,18 @@ export default function ScanBarcodePage() {
                   <option value="dinner">Dinner</option>
                   <option value="snack">Snack</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Date &amp; time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={loggedAt}
+                  onChange={(e) => setLoggedAt(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
               </div>
 
               <div>

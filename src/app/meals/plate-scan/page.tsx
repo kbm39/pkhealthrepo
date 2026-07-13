@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import HomeLink from '@/components/HomeLink'
+import { nowDateTimeLocalValue } from '@/components/LocalDateTime'
 import DietCheckBadge from '@/components/DietCheckBadge'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
@@ -30,6 +31,7 @@ export default function PlateScanPage() {
   const [confidenceNote, setConfidenceNote] = useState<string | null>(null)
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
+  const [loggedAt, setLoggedAt] = useState(nowDateTimeLocalValue())
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -156,6 +158,7 @@ export default function PlateScanPage() {
         food_name_snapshot: item.name,
         meal_type: mealType,
         quantity: 1,
+        logged_at: new Date(loggedAt).toISOString(),
         calories: item.calories,
         protein_g: item.protein_g,
         carbs_g: item.carbs_g,
@@ -341,6 +344,18 @@ export default function PlateScanPage() {
                   <option value="dinner">Dinner</option>
                   <option value="snack">Snack</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Date &amp; time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={loggedAt}
+                  onChange={(e) => setLoggedAt(e.target.value)}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
               </div>
 
               {saveError && (

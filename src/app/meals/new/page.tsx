@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import HomeLink from '@/components/HomeLink'
 import DietCheckBadge from '@/components/DietCheckBadge'
+import { nowDateTimeLocalValue } from '@/components/LocalDateTime'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 
@@ -29,6 +30,7 @@ export default function NewMealPage() {
   const labelInputRef = useRef<HTMLInputElement>(null)
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
+  const [loggedAt, setLoggedAt] = useState(nowDateTimeLocalValue())
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('1')
   const [calories, setCalories] = useState('')
@@ -226,6 +228,7 @@ export default function NewMealPage() {
       food_name_snapshot: name,
       meal_type: mealType,
       quantity: qty,
+      logged_at: new Date(loggedAt).toISOString(),
       calories: Number(calories) * qty,
       protein_g: protein ? Number(protein) * qty : null,
       carbs_g: carbs ? Number(carbs) * qty : null,
@@ -300,6 +303,18 @@ export default function NewMealPage() {
               <option value="dinner">Dinner</option>
               <option value="snack">Snack</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-700 mb-1">
+              Date &amp; time
+            </label>
+            <input
+              type="datetime-local"
+              value={loggedAt}
+              onChange={(e) => setLoggedAt(e.target.value)}
+              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            />
           </div>
 
           {!selectedFoodId && (
