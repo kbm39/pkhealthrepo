@@ -12,8 +12,12 @@ import {
 } from 'recharts'
 
 interface WeightPoint {
-  date: string
+  date: string // ISO timestamp — formatted client-side below to respect local timezone
   weight: number
+}
+
+function formatTick(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 export default function WeightTrendChart({
@@ -27,9 +31,9 @@ export default function WeightTrendChart({
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={data} margin={{ top: 5, right: 15, left: -20, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" />
-        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={formatTick} />
         <YAxis tick={{ fontSize: 10 }} domain={['dataMin - 5', 'dataMax + 5']} />
-        <Tooltip />
+        <Tooltip labelFormatter={(label) => formatTick(String(label))} />
         {goalWeight != null && (
           <ReferenceLine
             y={goalWeight}

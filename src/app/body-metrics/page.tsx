@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import WeightTrendChart from '@/components/WeightTrendChart'
 import BodyMetricActions from '@/components/BodyMetricActions'
 import HomeLink from '@/components/HomeLink'
+import { LocalDate } from '@/components/LocalDateTime'
 
 export default async function BodyMetricsPage() {
   const supabase = await createClient()
@@ -38,10 +39,7 @@ export default async function BodyMetricsPage() {
     .reverse()
     .filter((e) => e.weight_lbs != null)
     .map((e) => ({
-      date: new Date(e.recorded_at).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }),
+      date: e.recorded_at,
       weight: e.weight_lbs,
     }))
 
@@ -62,11 +60,7 @@ export default async function BodyMetricsPage() {
         {latest && (
           <section className="rounded-lg border border-neutral-200 bg-white p-5">
             <h2 className="text-sm font-medium text-neutral-700 mb-2">
-              Latest —{' '}
-              {new Date(latest.recorded_at).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              })}
+              Latest — <LocalDate iso={latest.recorded_at} />
             </h2>
             <div className="grid grid-cols-2 gap-3 text-center">
               <div>
@@ -124,10 +118,7 @@ export default async function BodyMetricsPage() {
                       {entry.body_fat_pct != null && ` · ${entry.body_fat_pct}% BF`}
                     </span>
                     <span className="block text-xs text-neutral-600">
-                      {new Date(entry.recorded_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                      })}{' '}
+                      <LocalDate iso={entry.recorded_at} />{' '}
                       · {entry.source === 'inbody_h30' ? 'InBody H30' : 'Manual'}
                     </span>
                   </div>
