@@ -29,6 +29,11 @@ const topics: TopicLink[] = [
     title: 'Body Metrics',
     description: 'Weight, body fat %, muscle mass, and progress over time',
   },
+  {
+    href: '/sleep',
+    title: 'Sleep',
+    description: 'Log sleep manually or import from an Oura Ring screenshot',
+  },
 ]
 
 export default async function HomePage() {
