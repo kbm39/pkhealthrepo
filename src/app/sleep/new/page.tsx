@@ -22,6 +22,17 @@ export default function NewSleepPage() {
   const [sleepScore, setSleepScore] = useState('')
   const [avgHeartRate, setAvgHeartRate] = useState('')
   const [avgRespiratoryRate, setAvgRespiratoryRate] = useState('')
+  const [respRateMin, setRespRateMin] = useState('')
+  const [respRateMax, setRespRateMax] = useState('')
+  const [hrvFirst90, setHrvFirst90] = useState('')
+  const [hrvLast90, setHrvLast90] = useState('')
+  const [sleepLatency, setSleepLatency] = useState('')
+  const [timeToGetUp, setTimeToGetUp] = useState('')
+  const [interruptions, setInterruptions] = useState('')
+  const [regularityRating, setRegularityRating] = useState('')
+  const [depthRating, setDepthRating] = useState('')
+  const [breathingQuality, setBreathingQuality] = useState('')
+  const [snoringMinutes, setSnoringMinutes] = useState('')
   const [source, setSource] = useState<'manual' | 'oura' | 'withings'>('manual')
 
   const [scanning, setScanning] = useState<'oura' | 'withings' | null>(null)
@@ -30,31 +41,37 @@ export default function NewSleepPage() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  async function handleScreenshotSelected(
+  function markManual() {
+    setSource('manual')
+  }
+
+  async function handleScreenshotsSelected(
     e: React.ChangeEvent<HTMLInputElement>,
     device: 'oura' | 'withings'
   ) {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = e.target.files
+    if (!files || files.length === 0) return
 
     setScreenshotError(null)
     setScanning(device)
 
     try {
-      const { base64, mediaType } = await resizeImageToBase64(file, 1500)
+      const images = await Promise.all(
+        Array.from(files).map((f) => resizeImageToBase64(f, 1500))
+      )
       const endpoint =
         device === 'oura' ? '/api/parse-oura-screenshot' : '/api/parse-withings-screenshot'
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, mediaType }),
+        body: JSON.stringify({ images }),
       })
       const data = await res.json()
 
       if (!res.ok || !data.found) {
         setScreenshotError(
           data.error ||
-            `Couldn't read sleep results in that screenshot. Try a clearer shot, or enter values manually.`
+            `Couldn't read sleep results in ${files.length > 1 ? 'those screenshots' : 'that screenshot'}. Try clearer shots, or enter values manually.`
         )
         setScanning(null)
         if (device === 'oura' && ouraInputRef.current) ouraInputRef.current.value = ''
@@ -71,9 +88,21 @@ export default function NewSleepPage() {
       if (data.avg_heart_rate != null) setAvgHeartRate(String(data.avg_heart_rate))
       if (data.avg_respiratory_rate != null)
         setAvgRespiratoryRate(String(data.avg_respiratory_rate))
+      if (data.respiratory_rate_min != null) setRespRateMin(String(data.respiratory_rate_min))
+      if (data.respiratory_rate_max != null) setRespRateMax(String(data.respiratory_rate_max))
+      if (data.hrv_first_90_ms != null) setHrvFirst90(String(data.hrv_first_90_ms))
+      if (data.hrv_last_90_ms != null) setHrvLast90(String(data.hrv_last_90_ms))
+      if (data.sleep_latency_minutes != null) setSleepLatency(String(data.sleep_latency_minutes))
+      if (data.time_to_get_up_minutes != null)
+        setTimeToGetUp(String(data.time_to_get_up_minutes))
+      if (data.interruptions_count != null) setInterruptions(String(data.interruptions_count))
+      if (data.regularity_rating) setRegularityRating(data.regularity_rating)
+      if (data.depth_rating) setDepthRating(data.depth_rating)
+      if (data.breathing_quality_assessment) setBreathingQuality(data.breathing_quality_assessment)
+      if (data.snoring_minutes != null) setSnoringMinutes(String(data.snoring_minutes))
       setSource(device)
     } catch {
-      setScreenshotError("Couldn't read that screenshot. Try a clearer shot, or enter values manually.")
+      setScreenshotError("Couldn't read those screenshots. Try clearer shots, or enter values manually.")
     }
 
     setScanning(null)
@@ -108,6 +137,17 @@ export default function NewSleepPage() {
       sleep_score: sleepScore ? Number(sleepScore) : null,
       avg_heart_rate: avgHeartRate ? Number(avgHeartRate) : null,
       avg_respiratory_rate: avgRespiratoryRate ? Number(avgRespiratoryRate) : null,
+      respiratory_rate_min: respRateMin ? Number(respRateMin) : null,
+      respiratory_rate_max: respRateMax ? Number(respRateMax) : null,
+      hrv_first_90_ms: hrvFirst90 ? Number(hrvFirst90) : null,
+      hrv_last_90_ms: hrvLast90 ? Number(hrvLast90) : null,
+      sleep_latency_minutes: sleepLatency ? Number(sleepLatency) : null,
+      time_to_get_up_minutes: timeToGetUp ? Number(timeToGetUp) : null,
+      interruptions_count: interruptions ? Number(interruptions) : null,
+      regularity_rating: regularityRating || null,
+      depth_rating: depthRating || null,
+      breathing_quality_assessment: breathingQuality || null,
+      snoring_minutes: snoringMinutes ? Number(snoringMinutes) : null,
     })
 
     setSaving(false)
@@ -121,6 +161,29 @@ export default function NewSleepPage() {
     router.refresh()
   }
 
+  function numberField(
+    label: string,
+    value: string,
+    setValue: (v: string) => void,
+    step?: string
+  ) {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-neutral-700 mb-1">{label}</label>
+        <input
+          type="number"
+          step={step}
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value)
+            markManual()
+          }}
+          className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+        />
+      </div>
+    )
+  }
+
   return (
     <main className="min-h-screen bg-neutral-50 px-4 py-10">
       <div className="mx-auto w-full max-w-sm space-y-6">
@@ -131,14 +194,16 @@ export default function NewSleepPage() {
           ref={ouraInputRef}
           type="file"
           accept="image/*"
-          onChange={(e) => handleScreenshotSelected(e, 'oura')}
+          multiple
+          onChange={(e) => handleScreenshotsSelected(e, 'oura')}
           className="hidden"
         />
         <input
           ref={withingsInputRef}
           type="file"
           accept="image/*"
-          onChange={(e) => handleScreenshotSelected(e, 'withings')}
+          multiple
+          onChange={(e) => handleScreenshotsSelected(e, 'withings')}
           className="hidden"
         />
 
@@ -151,7 +216,7 @@ export default function NewSleepPage() {
               disabled={scanning !== null}
               className="w-full rounded-md bg-neutral-100 text-neutral-700 text-xs font-medium py-2 hover:bg-neutral-200 disabled:opacity-50"
             >
-              {scanning === 'oura' ? 'Reading…' : '📷 Import screenshot'}
+              {scanning === 'oura' ? 'Reading…' : '📷 Import screenshots'}
             </button>
           </div>
           <div className="rounded-md border border-dashed border-neutral-300 p-3 space-y-2">
@@ -162,10 +227,14 @@ export default function NewSleepPage() {
               disabled={scanning !== null}
               className="w-full rounded-md bg-neutral-100 text-neutral-700 text-xs font-medium py-2 hover:bg-neutral-200 disabled:opacity-50"
             >
-              {scanning === 'withings' ? 'Reading…' : '📷 Import screenshot'}
+              {scanning === 'withings' ? 'Reading…' : '📷 Import screenshots'}
             </button>
           </div>
         </div>
+        <p className="text-xs text-neutral-600">
+          You can select multiple screenshots at once (e.g. duration, HRV, heart rate, and score
+          screens) — they&apos;ll be combined into one entry.
+        </p>
         {screenshotError && (
           <p className="text-xs text-red-600" role="alert">
             {screenshotError}
@@ -192,116 +261,78 @@ export default function NewSleepPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+            {numberField('Total sleep (min)', totalSleep, setTotalSleep)}
+            {numberField('Sleep score', sleepScore, setSleepScore)}
+            {numberField('Light sleep (min)', lightSleep, setLightSleep)}
+            {numberField('Deep sleep (min)', deepSleep, setDeepSleep)}
+            {numberField('REM sleep (min)', remSleep, setRemSleep)}
+            {numberField('Awake (min)', awake, setAwake)}
+          </div>
+
+          <div className="pt-2 border-t border-neutral-100">
+            <p className="text-xs font-medium text-neutral-700 mb-2">Heart & breathing</p>
+            <div className="grid grid-cols-2 gap-3">
+              {numberField('Avg heart rate', avgHeartRate, setAvgHeartRate)}
+              {numberField('Avg resp. rate', avgRespiratoryRate, setAvgRespiratoryRate, '0.1')}
+              {numberField('Resp. rate min', respRateMin, setRespRateMin, '0.1')}
+              {numberField('Resp. rate max', respRateMax, setRespRateMax, '0.1')}
+              {numberField('Snoring (min)', snoringMinutes, setSnoringMinutes)}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-neutral-100">
+            <p className="text-xs font-medium text-neutral-700 mb-2">HRV & recovery</p>
+            <div className="grid grid-cols-2 gap-3">
+              {numberField('HRV first 90min (ms)', hrvFirst90, setHrvFirst90)}
+              {numberField('HRV last 90min (ms)', hrvLast90, setHrvLast90)}
+              {numberField('Time to sleep (min)', sleepLatency, setSleepLatency)}
+              {numberField('Time to get up (min)', timeToGetUp, setTimeToGetUp)}
+              {numberField('Interruptions', interruptions, setInterruptions)}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-neutral-100 space-y-3">
+            <p className="text-xs font-medium text-neutral-700">Quality ratings</p>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Total sleep (min)
+                Regularity
               </label>
               <input
-                type="number"
-                value={totalSleep}
+                type="text"
+                value={regularityRating}
                 onChange={(e) => {
-                  setTotalSleep(e.target.value)
-                  setSource('manual')
+                  setRegularityRating(e.target.value)
+                  markManual()
                 }}
+                placeholder="e.g. Good"
+                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-1">Depth</label>
+              <input
+                type="text"
+                value={depthRating}
+                onChange={(e) => {
+                  setDepthRating(e.target.value)
+                  markManual()
+                }}
+                placeholder="e.g. Good"
                 className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Sleep score
+                Breathing quality
               </label>
               <input
-                type="number"
-                value={sleepScore}
+                type="text"
+                value={breathingQuality}
                 onChange={(e) => {
-                  setSleepScore(e.target.value)
-                  setSource('manual')
+                  setBreathingQuality(e.target.value)
+                  markManual()
                 }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Light sleep (min)
-              </label>
-              <input
-                type="number"
-                value={lightSleep}
-                onChange={(e) => {
-                  setLightSleep(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Deep sleep (min)
-              </label>
-              <input
-                type="number"
-                value={deepSleep}
-                onChange={(e) => {
-                  setDeepSleep(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                REM sleep (min)
-              </label>
-              <input
-                type="number"
-                value={remSleep}
-                onChange={(e) => {
-                  setRemSleep(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Awake (min)
-              </label>
-              <input
-                type="number"
-                value={awake}
-                onChange={(e) => {
-                  setAwake(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Avg heart rate
-              </label>
-              <input
-                type="number"
-                value={avgHeartRate}
-                onChange={(e) => {
-                  setAvgHeartRate(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Resp. rate
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                value={avgRespiratoryRate}
-                onChange={(e) => {
-                  setAvgRespiratoryRate(e.target.value)
-                  setSource('manual')
-                }}
+                placeholder="e.g. Optimal"
                 className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
               />
             </div>

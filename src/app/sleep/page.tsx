@@ -79,6 +79,24 @@ export default async function SleepPage() {
                 </p>
                 <p className="text-xs text-neutral-700">avg HR</p>
               </div>
+              <div>
+                <p className="text-lg font-semibold text-neutral-900">
+                  {latest.hrv_last_90_ms ?? '—'}
+                </p>
+                <p className="text-xs text-neutral-700">HRV (ms)</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-neutral-900">
+                  {latest.interruptions_count ?? '—'}
+                </p>
+                <p className="text-xs text-neutral-700">interruptions</p>
+              </div>
+              <div>
+                <p className="text-lg font-semibold text-neutral-900">
+                  {latest.breathing_quality_assessment ?? '—'}
+                </p>
+                <p className="text-xs text-neutral-700">breathing</p>
+              </div>
             </div>
           </section>
         )}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const EXTRACTION_PROMPT = `You are reading a screenshot of Oura Ring (or similar sleep tracker app) sleep results.
+const EXTRACTION_PROMPT = `You are reading screenshots of Oura Ring (or similar sleep tracker app) sleep results. There may be multiple screenshots covering different sections of the same night — combine everything you see into one result.
 
 Extract the values EXACTLY as shown — do not estimate or infer anything not visible on screen.
 
@@ -13,10 +13,19 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in exactly t
   "awake_minutes": number or null,
   "sleep_score": number or null,
   "avg_heart_rate": number or null,
-  "avg_respiratory_rate": number or null
+  "avg_respiratory_rate": number or null,
+  "respiratory_rate_min": number or null,
+  "respiratory_rate_max": number or null,
+  "hrv_first_90_ms": number or null,
+  "hrv_last_90_ms": number or null,
+  "sleep_latency_minutes": number or null,
+  "time_to_get_up_minutes": number or null,
+  "interruptions_count": number or null,
+  "regularity_rating": string or null,
+  "depth_rating": string or null
 }
 
-Convert any hour/minute display (e.g. "7h 32m") to total minutes. If the image doesn't show legible sleep tracker results, return all fields as null.`
+Convert any hour/minute display (e.g. "7h 32m") to total minutes. If the images don't show legible sleep tracker results, return all fields as null.`
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -29,9 +38,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { imageBase64, mediaType } = await request.json()
+    const body = await request.json()
+    const images: { base64: string; mediaType?: string }[] = body.images
+      ? body.images
+      : body.imageBase64
+        ? [{ base64: body.imageBase64, mediaType: body.mediaType }]
+        : []
 
-    if (!imageBase64 || typeof imageBase64 !== 'string') {
+    if (images.length === 0) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 })
     }
 
@@ -44,15 +58,15 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 400,
+        max_tokens: 500,
         messages: [
           {
             role: 'user',
             content: [
-              {
+              ...images.map((img) => ({
                 type: 'image',
-                source: { type: 'base64', media_type: mediaType || 'image/jpeg', data: imageBase64 },
-              },
+                source: { type: 'base64', media_type: img.mediaType || 'image/jpeg', data: img.base64 },
+              })),
               { type: 'text', text: EXTRACTION_PROMPT },
             ],
           },
