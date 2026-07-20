@@ -70,7 +70,13 @@ export default async function WorkoutsPage() {
         <HomeLink />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900">Workouts</h1>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Link
+              href="/workouts/activity"
+              className="rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium px-4 py-2 hover:bg-neutral-50"
+            >
+              Activity
+            </Link>
             <Link
               href="/workouts/trends"
               className="rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium px-4 py-2 hover:bg-neutral-50"
