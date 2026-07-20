@@ -17,6 +17,7 @@ export default function EditMealPage() {
   const [notFound, setNotFound] = useState(false)
 
   const [foodName, setFoodName] = useState('')
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [mealType, setMealType] = useState<MealType>('breakfast')
   const [quantity, setQuantity] = useState('1')
   const [calories, setCalories] = useState('')
@@ -46,6 +47,7 @@ export default function EditMealPage() {
       }
 
       setFoodName(data.food_name_snapshot ?? 'Food')
+      setPhotoUrl(data.photo_url ?? null)
       setMealType(data.meal_type)
       setQuantity(String(data.quantity))
       setCalories(String(data.calories))
@@ -120,6 +122,14 @@ export default function EditMealPage() {
         <HomeLink />
         <h1 className="text-2xl font-semibold text-neutral-900">Edit meal</h1>
         <p className="text-sm text-neutral-700">{foodName}</p>
+        {photoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoUrl}
+            alt={foodName}
+            className="w-full max-h-48 rounded-md object-cover border border-neutral-200"
+          />
+        )}
 
         <form onSubmit={handleSave} className="space-y-4">
           <div>

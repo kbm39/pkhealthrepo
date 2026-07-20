@@ -29,6 +29,7 @@ export default function PlateScanPage() {
   const [scanError, setScanError] = useState<string | null>(null)
   const [items, setItems] = useState<PlateItem[]>([])
   const [confidenceNote, setConfidenceNote] = useState<string | null>(null)
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
   const [loggedAt, setLoggedAt] = useState(nowDateTimeLocalValue())
@@ -64,6 +65,7 @@ export default function PlateScanPage() {
     setScanError(null)
     setItems([])
     setConfidenceNote(null)
+    setPhotoFile(file)
     setAnalyzing(true)
 
     try {
@@ -129,6 +131,23 @@ export default function PlateScanPage() {
       return
     }
 
+    // Upload the plate photo once (if present) and attach the same URL to
+    // every item logged from it, so the picture shows alongside each entry.
+    let photoUrl: string | null = null
+    if (photoFile) {
+      const ext = photoFile.name.split('.').pop() || 'jpg'
+      const path = `${user.id}/${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('meal-photos')
+        .upload(path, photoFile, { contentType: photoFile.type || 'image/jpeg' })
+
+      if (!uploadError) {
+        const { data: publicUrlData } = supabase.storage.from('meal-photos').getPublicUrl(path)
+        photoUrl = publicUrlData.publicUrl
+      }
+      // If upload fails, we still log the meal — just without a photo attached.
+    }
+
     for (const item of itemsToLog) {
       const { data: newFood, error: foodError } = await supabase
         .from('foods')
@@ -164,6 +183,7 @@ export default function PlateScanPage() {
         carbs_g: item.carbs_g,
         fat_g: item.fat_g,
         entry_method: 'plate_scan',
+        photo_url: photoUrl,
       })
 
       if (logError) {

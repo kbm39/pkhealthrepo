@@ -24,7 +24,7 @@ export default async function MealsPage() {
 
   const { data: meals } = await supabase
     .from('meal_logs')
-    .select('id, food_name_snapshot, meal_type, quantity, calories, protein_g, carbs_g, fat_g, logged_at')
+    .select('id, food_name_snapshot, meal_type, quantity, calories, protein_g, carbs_g, fat_g, logged_at, photo_url')
     .eq('user_id', user.id)
     .gte('logged_at', ninetyDaysAgo.toISOString())
     .order('logged_at', { ascending: true })

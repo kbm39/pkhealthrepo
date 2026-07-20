@@ -17,6 +17,7 @@ interface MealLogEntry {
   carbs_g: number | null
   fat_g: number | null
   logged_at: string
+  photo_url: string | null
 }
 
 export default function MealsDayView({ entries }: { entries: MealLogEntry[] }) {
@@ -120,13 +121,23 @@ export default function MealsDayView({ entries }: { entries: MealLogEntry[] }) {
             <ul className="space-y-2">
               {items.map((m) => (
                 <li key={m.id} className="flex items-center justify-between text-sm gap-2">
-                  <div>
-                    <span className="text-neutral-900">
-                      {m.food_name_snapshot ?? 'Food'} {m.quantity !== 1 ? `× ${m.quantity}` : ''}
-                    </span>
-                    <span className="block text-xs text-neutral-600">
-                      <LocalTime iso={m.logged_at} />
-                    </span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {m.photo_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.photo_url}
+                        alt={m.food_name_snapshot ?? 'Meal photo'}
+                        className="w-12 h-12 rounded-md object-cover shrink-0 border border-neutral-200"
+                      />
+                    )}
+                    <div className="min-w-0">
+                      <span className="text-neutral-900">
+                        {m.food_name_snapshot ?? 'Food'} {m.quantity !== 1 ? `× ${m.quantity}` : ''}
+                      </span>
+                      <span className="block text-xs text-neutral-600">
+                        <LocalTime iso={m.logged_at} />
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-neutral-700">{Math.round(m.calories)} cal</span>
