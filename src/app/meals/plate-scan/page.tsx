@@ -9,6 +9,7 @@ import { nowDateTimeLocalValue } from '@/components/LocalDateTime'
 import DietCheckBadge from '@/components/DietCheckBadge'
 
 type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+type ScanMode = 'single' | 'beforeAfter'
 
 interface PlateItem {
   name: string
@@ -24,12 +25,20 @@ export default function PlateScanPage() {
   const router = useRouter()
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const beforeInputRef = useRef<HTMLInputElement>(null)
+  const afterInputRef = useRef<HTMLInputElement>(null)
+
+  const [mode, setMode] = useState<ScanMode>('single')
 
   const [analyzing, setAnalyzing] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
   const [items, setItems] = useState<PlateItem[]>([])
   const [confidenceNote, setConfidenceNote] = useState<string | null>(null)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
+
+  // Before/After mode state
+  const [beforePhotoFile, setBeforePhotoFile] = useState<File | null>(null)
+  const [waitingForAfter, setWaitingForAfter] = useState(false)
 
   const [mealType, setMealType] = useState<MealType>('breakfast')
   const [loggedAt, setLoggedAt] = useState(nowDateTimeLocalValue())
@@ -100,6 +109,92 @@ export default function PlateScanPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
+  function triggerBeforeCapture() {
+    beforeInputRef.current?.click()
+  }
+
+  function handleBeforeSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBeforePhotoFile(file)
+    setWaitingForAfter(true)
+    if (beforeInputRef.current) beforeInputRef.current.value = ''
+  }
+
+  function triggerAfterCapture() {
+    afterInputRef.current?.click()
+  }
+
+  async function handleAfterSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !beforePhotoFile) return
+
+    setScanError(null)
+    setItems([])
+    setConfidenceNote(null)
+    setAnalyzing(true)
+    setWaitingForAfter(false)
+    // Keep the "before" photo attached to the log entry, since it best
+    // represents what the meal was.
+    setPhotoFile(beforePhotoFile)
+
+    try {
+      const before = await resizeImageToBase64(beforePhotoFile, 1500)
+      const after = await resizeImageToBase64(file, 1500)
+
+      const res = await fetch('/api/parse-plate-before-after', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          beforeImage: { base64: before.base64, mediaType: before.mediaType },
+          afterImage: { base64: after.base64, mediaType: after.mediaType },
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data.found) {
+        setScanError(
+          data.error ||
+            data.confidenceNote ||
+            "Couldn't compare those photos. Try clearer shots of both, or use manual entry instead."
+        )
+        setAnalyzing(false)
+        setBeforePhotoFile(null)
+        if (afterInputRef.current) afterInputRef.current.value = ''
+        return
+      }
+
+      setItems(
+        data.items.map(
+          (item: {
+            name: string
+            startingPortion: string
+            percentEaten: number
+            calories: number
+            protein_g: number | null
+            carbs_g: number | null
+            fat_g: number | null
+          }) => ({
+            name: item.name,
+            estimatedPortion: `${item.percentEaten}% of ${item.startingPortion}`,
+            calories: item.calories,
+            protein_g: item.protein_g,
+            carbs_g: item.carbs_g,
+            fat_g: item.fat_g,
+            include: true,
+          })
+        )
+      )
+      setConfidenceNote(data.confidenceNote)
+    } catch {
+      setScanError("Couldn't compare those photos. Try clearer, well-lit shots of both plates.")
+    }
+
+    setAnalyzing(false)
+    setBeforePhotoFile(null)
+    if (afterInputRef.current) afterInputRef.current.value = ''
+  }
+
   function updateItem(index: number, field: keyof PlateItem, value: string | number | boolean) {
     setItems((prev) =>
       prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
@@ -111,7 +206,13 @@ export default function PlateScanPage() {
     setConfidenceNote(null)
     setScanError(null)
     setSaveError(null)
-    triggerCapture()
+    setBeforePhotoFile(null)
+    setWaitingForAfter(false)
+    if (mode === 'single') {
+      triggerCapture()
+    } else {
+      triggerBeforeCapture()
+    }
   }
 
   async function handleLogAll() {
@@ -218,19 +319,73 @@ export default function PlateScanPage() {
           onChange={handlePhotoSelected}
           className="hidden"
         />
+        <input
+          ref={beforeInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleBeforeSelected}
+          className="hidden"
+        />
+        <input
+          ref={afterInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={handleAfterSelected}
+          className="hidden"
+        />
 
-        {showCaptureButton && (
+        {showCaptureButton && !waitingForAfter && (
           <div className="rounded-lg border border-neutral-200 bg-white p-6 text-center space-y-4">
-            <p className="text-sm text-neutral-700">
-              Take a photo of your meal — AI will identify each food and estimate nutrition.
-              You&apos;ll be able to review and adjust everything before logging.
-            </p>
-            <button
-              onClick={triggerCapture}
-              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-6 py-3 hover:bg-neutral-800"
-            >
-              Take photo
-            </button>
+            <div className="flex rounded-md border border-neutral-300 overflow-hidden text-sm">
+              <button
+                onClick={() => setMode('single')}
+                className={`flex-1 py-2 font-medium ${
+                  mode === 'single' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-700'
+                }`}
+              >
+                Single photo
+              </button>
+              <button
+                onClick={() => setMode('beforeAfter')}
+                className={`flex-1 py-2 font-medium ${
+                  mode === 'beforeAfter' ? 'bg-neutral-900 text-white' : 'bg-white text-neutral-700'
+                }`}
+              >
+                Before &amp; After
+              </button>
+            </div>
+
+            {mode === 'single' ? (
+              <>
+                <p className="text-sm text-neutral-700">
+                  Take a photo of your meal — AI will identify each food and estimate nutrition.
+                  You&apos;ll be able to review and adjust everything before logging.
+                </p>
+                <button
+                  onClick={triggerCapture}
+                  className="rounded-md bg-neutral-900 text-white text-sm font-medium px-6 py-3 hover:bg-neutral-800"
+                >
+                  Take photo
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-neutral-700">
+                  Take a photo before eating, then another after — the app compares the two to
+                  estimate how much you actually ate, rather than assuming the whole plate was
+                  finished.
+                </p>
+                <button
+                  onClick={triggerBeforeCapture}
+                  className="rounded-md bg-neutral-900 text-white text-sm font-medium px-6 py-3 hover:bg-neutral-800"
+                >
+                  Take &quot;before&quot; photo
+                </button>
+              </>
+            )}
+
             {scanError && (
               <p className="text-sm text-red-600" role="alert">
                 {scanError}
@@ -239,8 +394,34 @@ export default function PlateScanPage() {
           </div>
         )}
 
+        {waitingForAfter && (
+          <div className="rounded-lg border border-neutral-200 bg-white p-6 text-center space-y-4">
+            <p className="text-sm text-neutral-700">
+              Got the &quot;before&quot; photo. When you&apos;re done eating (or stopping), take
+              the &quot;after&quot; photo of what&apos;s left.
+            </p>
+            <button
+              onClick={triggerAfterCapture}
+              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-6 py-3 hover:bg-neutral-800"
+            >
+              Take &quot;after&quot; photo
+            </button>
+            <button
+              onClick={() => {
+                setBeforePhotoFile(null)
+                setWaitingForAfter(false)
+              }}
+              className="block w-full text-xs text-neutral-600 underline underline-offset-2"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {analyzing && (
-          <p className="text-sm text-neutral-700 text-center py-8">Analyzing your plate…</p>
+          <p className="text-sm text-neutral-700 text-center py-8">
+            {mode === 'beforeAfter' ? 'Comparing your before/after photos…' : 'Analyzing your plate…'}
+          </p>
         )}
 
         {!analyzing && items.length > 0 && (
@@ -253,7 +434,7 @@ export default function PlateScanPage() {
 
             <div className="rounded-lg border border-neutral-200 bg-white p-5 space-y-4">
               <h2 className="text-sm font-medium text-neutral-700">
-                Detected items — tap to adjust
+                {mode === 'beforeAfter' ? 'Estimated eaten — tap to adjust' : 'Detected items — tap to adjust'}
               </h2>
 
               {items.map((item, i) => (
