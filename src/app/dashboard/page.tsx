@@ -7,6 +7,7 @@ import {
   type ActivityLevel,
 } from '@/lib/calc/calories'
 import HomeLink from '@/components/HomeLink'
+import TodayEnergyCard from '@/components/TodayEnergyCard'
 
 // Default weekly rate target — adjustable per-goal in a future settings screen.
 const DEFAULT_WEEKLY_RATE_LBS = 2
@@ -65,6 +66,50 @@ export default async function DashboardPage() {
 
   const dailyTarget = calculateDailyTarget(profileInput, DEFAULT_WEEKLY_RATE_LBS)
 
+  // Pull a few days of energy data rather than filtering to "today" here — the
+  // server runs in UTC, so the day boundary is resolved client-side instead.
+  const windowStart = new Date()
+  windowStart.setDate(windowStart.getDate() - 3)
+  const windowStartIso = windowStart.toISOString()
+  const windowStartDate = windowStartIso.slice(0, 10)
+
+  const [
+    { data: recentMeals },
+    { data: recentActivity },
+    { data: recentSwims },
+    { data: recentWorkouts },
+  ] = await Promise.all([
+    supabase
+      .from('meal_logs')
+      .select('calories, logged_at')
+      .eq('user_id', user.id)
+      .gte('logged_at', windowStartIso),
+    supabase
+      .from('activity_logs')
+      .select('activity_date, active_calories, activity_type')
+      .eq('user_id', user.id)
+      .gte('activity_date', windowStartDate),
+    supabase
+      .from('swim_logs')
+      .select('swim_date, active_calories')
+      .eq('user_id', user.id)
+      .gte('swim_date', windowStartDate),
+    supabase
+      .from('workout_logs')
+      .select('logged_at, workout_sets(calories_burned)')
+      .eq('user_id', user.id)
+      .gte('logged_at', windowStartIso),
+  ])
+
+  const strengthBurn = (recentWorkouts ?? []).map((w) => ({
+    logged_at: w.logged_at as string,
+    calories_burned: (w.workout_sets ?? []).reduce(
+      (sum: number, s: { calories_burned: number | null }) =>
+        sum + (s.calories_burned ?? 0),
+      0
+    ),
+  }))
+
   // TODO: replace with real 7–14 day logged average from meal_logs
   // once meal logging is built. Falls back to theoretical target for now.
   const projection = projectDaysToGoal(
@@ -78,6 +123,14 @@ export default async function DashboardPage() {
       <div className="mx-auto w-full max-w-md space-y-6">
         <HomeLink />
         <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
+
+        <TodayEnergyCard
+          dailyTarget={dailyTarget.dailyTarget}
+          meals={recentMeals ?? []}
+          activity={recentActivity ?? []}
+          swims={recentSwims ?? []}
+          strength={strengthBurn}
+        />
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5">
           <h2 className="text-sm font-medium text-neutral-700 mb-1">
