@@ -69,12 +69,20 @@ export default async function HomePage() {
           More sections — vitals, medications, device sync — coming soon.
         </p>
 
-        <Link
-          href="/settings"
-          className="block text-center text-sm text-neutral-700 underline underline-offset-2"
-        >
-          Settings
-        </Link>
+        <div className="flex justify-center gap-4">
+          <Link
+            href="/settings"
+            className="text-center text-sm text-neutral-700 underline underline-offset-2"
+          >
+            Settings
+          </Link>
+          <Link
+            href="/export"
+            className="text-center text-sm text-neutral-700 underline underline-offset-2"
+          >
+            Export data
+          </Link>
+        </div>
       </div>
     </main>
   )
