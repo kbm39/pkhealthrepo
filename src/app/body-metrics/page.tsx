@@ -49,12 +49,20 @@ export default async function BodyMetricsPage() {
         <HomeLink />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900">Body Metrics</h1>
-          <Link
-            href="/body-metrics/new"
-            className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
-          >
-            + Add
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/body-metrics/import"
+              className="rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium px-4 py-2 hover:bg-neutral-50"
+            >
+              Import CSV
+            </Link>
+            <Link
+              href="/body-metrics/new"
+              className="rounded-md bg-neutral-900 text-white text-sm font-medium px-4 py-2 hover:bg-neutral-800"
+            >
+              + Add
+            </Link>
+          </div>
         </div>
 
         {latest && (
