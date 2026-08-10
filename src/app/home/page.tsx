@@ -34,6 +34,11 @@ const topics: TopicLink[] = [
     title: 'Sleep',
     description: 'Log sleep manually or import from an Oura Ring screenshot',
   },
+  {
+    href: '/vitals',
+    title: 'Vitals',
+    description: 'Blood pressure and glucose — manual entry or screenshot import',
+  },
 ]
 
 export default async function HomePage() {
@@ -66,7 +71,7 @@ export default async function HomePage() {
         </div>
 
         <p className="text-xs text-neutral-600 text-center pt-4">
-          More sections — vitals, medications, device sync — coming soon.
+          More sections — medications, device sync — coming soon.
         </p>
 
         <div className="flex justify-center gap-4">
