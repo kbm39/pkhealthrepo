@@ -7,6 +7,32 @@ import HomeLink from '@/components/HomeLink'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import { todayDateKey } from '@/components/LocalDateTime'
 
+interface ActivityEntry {
+  activityType: string
+  timeOfDay: string // free text as shown, e.g. "8:17 AM" — used only to compute started_at
+  durationMinutes: string
+  calories: string
+  avgHeartRate: string
+}
+
+function emptyActivity(): ActivityEntry {
+  return { activityType: '', timeOfDay: '', durationMinutes: '', calories: '', avgHeartRate: '' }
+}
+
+/** Combines a YYYY-MM-DD date with a "8:17 AM" style time into an ISO string, or null if unparseable. */
+function combineDateAndTime(dateKey: string, timeOfDay: string): string | null {
+  const match = timeOfDay.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!match) return null
+  let hours = parseInt(match[1], 10)
+  const minutes = parseInt(match[2], 10)
+  const meridiem = match[3].toUpperCase()
+  if (meridiem === 'PM' && hours !== 12) hours += 12
+  if (meridiem === 'AM' && hours === 12) hours = 0
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const d = new Date(year, month - 1, day, hours, minutes)
+  return d.toISOString()
+}
+
 export default function NewActivityPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -14,12 +40,13 @@ export default function NewActivityPage() {
 
   const [activityDate, setActivityDate] = useState(todayDateKey())
   const [steps, setSteps] = useState('')
-  const [activeCalories, setActiveCalories] = useState('')
+  const [goalProgressCalories, setGoalProgressCalories] = useState('')
+  const [goalCalories, setGoalCalories] = useState('')
   const [totalCalories, setTotalCalories] = useState('')
-  const [activityType, setActivityType] = useState('')
-  const [durationMinutes, setDurationMinutes] = useState('')
-  const [avgHeartRate, setAvgHeartRate] = useState('')
+  const [activityTimeMinutes, setActivityTimeMinutes] = useState('')
   const [source, setSource] = useState<'manual' | 'oura'>('manual')
+
+  const [activities, setActivities] = useState<ActivityEntry[]>([])
 
   const [scanning, setScanning] = useState(false)
   const [screenshotError, setScreenshotError] = useState<string | null>(null)
@@ -56,11 +83,32 @@ export default function NewActivityPage() {
       }
 
       if (data.steps != null) setSteps(String(data.steps))
-      if (data.active_calories != null) setActiveCalories(String(data.active_calories))
+      if (data.goal_progress_calories != null) setGoalProgressCalories(String(data.goal_progress_calories))
+      if (data.goal_target_calories != null) setGoalCalories(String(data.goal_target_calories))
       if (data.total_calories != null) setTotalCalories(String(data.total_calories))
-      if (data.activity_type) setActivityType(data.activity_type)
-      if (data.duration_minutes != null) setDurationMinutes(String(data.duration_minutes))
-      if (data.avg_heart_rate != null) setAvgHeartRate(String(data.avg_heart_rate))
+      if (data.activity_time_minutes != null) setActivityTimeMinutes(String(data.activity_time_minutes))
+
+      if (Array.isArray(data.activities) && data.activities.length > 0) {
+        setActivities((prev) => [
+          ...prev,
+          ...data.activities.map(
+            (a: {
+              activity_type?: string
+              time_of_day?: string | null
+              duration_minutes?: number | null
+              calories?: number | null
+              avg_heart_rate?: number | null
+            }) => ({
+              activityType: a.activity_type ?? '',
+              timeOfDay: a.time_of_day ?? '',
+              durationMinutes: a.duration_minutes != null ? String(a.duration_minutes) : '',
+              calories: a.calories != null ? String(a.calories) : '',
+              avgHeartRate: a.avg_heart_rate != null ? String(a.avg_heart_rate) : '',
+            })
+          ),
+        ])
+      }
+
       setSource('oura')
     } catch {
       setScreenshotError("Couldn't read that screenshot. Try a clearer shot, or enter values manually.")
@@ -68,6 +116,14 @@ export default function NewActivityPage() {
 
     setScanning(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function updateActivity(index: number, field: keyof ActivityEntry, value: string) {
+    setActivities((prev) => prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)))
+  }
+
+  function removeActivity(index: number) {
+    setActivities((prev) => prev.filter((_, i) => i !== index))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -85,17 +141,45 @@ export default function NewActivityPage() {
       return
     }
 
-    const { error } = await supabase.from('activity_logs').insert({
-      user_id: user.id,
-      activity_date: activityDate,
-      source,
-      steps: steps ? Number(steps) : null,
-      active_calories: activeCalories ? Number(activeCalories) : null,
-      total_calories: totalCalories ? Number(totalCalories) : null,
-      activity_type: activityType || null,
-      duration_minutes: durationMinutes ? Number(durationMinutes) : null,
-      avg_heart_rate: avgHeartRate ? Number(avgHeartRate) : null,
-    })
+    const hasSummaryData =
+      steps || goalProgressCalories || goalCalories || totalCalories || activityTimeMinutes
+
+    const rows: Record<string, unknown>[] = []
+
+    if (hasSummaryData) {
+      rows.push({
+        user_id: user.id,
+        activity_date: activityDate,
+        source,
+        steps: steps ? Number(steps) : null,
+        active_calories: goalProgressCalories ? Number(goalProgressCalories) : null,
+        total_calories: totalCalories ? Number(totalCalories) : null,
+        goal_calories: goalCalories ? Number(goalCalories) : null,
+        activity_time_minutes: activityTimeMinutes ? Number(activityTimeMinutes) : null,
+      })
+    }
+
+    for (const a of activities) {
+      if (!a.activityType) continue
+      rows.push({
+        user_id: user.id,
+        activity_date: activityDate,
+        source,
+        activity_type: a.activityType,
+        duration_minutes: a.durationMinutes ? Number(a.durationMinutes) : null,
+        active_calories: a.calories ? Number(a.calories) : null,
+        avg_heart_rate: a.avgHeartRate ? Number(a.avgHeartRate) : null,
+        started_at: a.timeOfDay ? combineDateAndTime(activityDate, a.timeOfDay) : null,
+      })
+    }
+
+    if (rows.length === 0) {
+      setError('Add at least steps/calories or one activity before saving.')
+      setSaving(false)
+      return
+    }
+
+    const { error } = await supabase.from('activity_logs').insert(rows)
 
     setSaving(false)
 
@@ -133,8 +217,8 @@ export default function NewActivityPage() {
             {scanning ? 'Reading screenshot…' : '📷 Import from Oura screenshot'}
           </button>
           <p className="text-xs text-neutral-600">
-            Take a screenshot of your Oura steps/calories or a detected workout, then select it
-            here — fields below will auto-fill for you to review. You can select multiple at once.
+            Import the full Activity page — goal progress, total burn, activity time, steps, and
+            every listed activity all get captured. Select multiple screenshots at once if needed.
           </p>
           {screenshotError && (
             <p className="text-xs text-red-600" role="alert">
@@ -154,96 +238,147 @@ export default function NewActivityPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Steps</label>
-              <input
-                type="number"
-                value={steps}
-                onChange={(e) => {
-                  setSteps(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Active calories
-              </label>
-              <input
-                type="number"
-                value={activeCalories}
-                onChange={(e) => {
-                  setActiveCalories(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Total calories
-              </label>
-              <input
-                type="number"
-                value={totalCalories}
-                onChange={(e) => {
-                  setTotalCalories(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Avg heart rate
-              </label>
-              <input
-                type="number"
-                value={avgHeartRate}
-                onChange={(e) => {
-                  setAvgHeartRate(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
+          <div className="pt-2 border-t border-neutral-100 space-y-3">
+            <p className="text-xs font-medium text-neutral-700">Daily summary</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">Steps</label>
+                <input
+                  type="number"
+                  value={steps}
+                  onChange={(e) => {
+                    setSteps(e.target.value)
+                    setSource('manual')
+                  }}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Goal progress (cal)
+                </label>
+                <input
+                  type="number"
+                  value={goalProgressCalories}
+                  onChange={(e) => {
+                    setGoalProgressCalories(e.target.value)
+                    setSource('manual')
+                  }}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Goal target (cal)
+                </label>
+                <input
+                  type="number"
+                  value={goalCalories}
+                  onChange={(e) => {
+                    setGoalCalories(e.target.value)
+                    setSource('manual')
+                  }}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Total burn (cal)
+                </label>
+                <input
+                  type="number"
+                  value={totalCalories}
+                  onChange={(e) => {
+                    setTotalCalories(e.target.value)
+                    setSource('manual')
+                  }}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-neutral-700 mb-1">
+                  Activity time (minutes)
+                </label>
+                <input
+                  type="number"
+                  value={activityTimeMinutes}
+                  onChange={(e) => {
+                    setActivityTimeMinutes(e.target.value)
+                    setSource('manual')
+                  }}
+                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                />
+              </div>
             </div>
           </div>
 
           <div className="pt-2 border-t border-neutral-100 space-y-3">
-            <p className="text-xs font-medium text-neutral-700">
-              Detected workout (optional — leave blank for a daily summary)
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Activity type
-              </label>
-              <input
-                type="text"
-                value={activityType}
-                onChange={(e) => {
-                  setActivityType(e.target.value)
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium text-neutral-700">
+                Activities ({activities.length})
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivities((prev) => [...prev, emptyActivity()])
                   setSource('manual')
                 }}
-                placeholder="e.g. Walking, Running"
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
+                className="text-xs text-neutral-700 underline underline-offset-2"
+              >
+                + Add activity
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Duration (min)
-              </label>
-              <input
-                type="number"
-                value={durationMinutes}
-                onChange={(e) => {
-                  setDurationMinutes(e.target.value)
-                  setSource('manual')
-                }}
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
+
+            {activities.map((a, i) => (
+              <div key={i} className="rounded-md border border-neutral-200 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <input
+                    type="text"
+                    placeholder="Activity type (e.g. Swimming)"
+                    value={a.activityType}
+                    onChange={(e) => updateActivity(i, 'activityType', e.target.value)}
+                    className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm mr-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeActivity(i)}
+                    className="text-xs text-red-600 underline underline-offset-2 shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Time (e.g. 8:17 AM)"
+                    value={a.timeOfDay}
+                    onChange={(e) => updateActivity(i, 'timeOfDay', e.target.value)}
+                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Duration (min)"
+                    value={a.durationMinutes}
+                    onChange={(e) => updateActivity(i, 'durationMinutes', e.target.value)}
+                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Calories"
+                    value={a.calories}
+                    onChange={(e) => updateActivity(i, 'calories', e.target.value)}
+                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Avg heart rate"
+                    value={a.avgHeartRate}
+                    onChange={(e) => updateActivity(i, 'avgHeartRate', e.target.value)}
+                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
           {error && (

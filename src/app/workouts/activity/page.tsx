@@ -61,18 +61,27 @@ export default async function ActivityPage() {
               <div>
                 <p className="text-lg font-semibold text-neutral-900">
                   {latest.active_calories ?? '—'}
+                  {latest.goal_calories != null && (
+                    <span className="text-xs text-neutral-500"> / {latest.goal_calories}</span>
+                  )}
                 </p>
-                <p className="text-xs text-neutral-700">active cal</p>
+                <p className="text-xs text-neutral-700">goal progress cal</p>
               </div>
               <div>
                 <p className="text-lg font-semibold text-neutral-900">
                   {latest.total_calories ?? '—'}
                 </p>
-                <p className="text-xs text-neutral-700">total cal</p>
+                <p className="text-xs text-neutral-700">total burn</p>
               </div>
             </div>
-            {latest.activity_type && (
+            {latest.activity_time_minutes != null && (
               <p className="text-xs text-neutral-600 text-center mt-3">
+                Activity time: {Math.floor(latest.activity_time_minutes / 60)}h{' '}
+                {latest.activity_time_minutes % 60}m
+              </p>
+            )}
+            {latest.activity_type && (
+              <p className="text-xs text-neutral-600 text-center mt-1">
                 {latest.activity_type}
                 {latest.duration_minutes != null && ` · ${latest.duration_minutes} min`}
                 {latest.avg_heart_rate != null && ` · avg HR ${latest.avg_heart_rate}`}
@@ -96,9 +105,16 @@ export default async function ActivityPage() {
                       {entry.steps != null && `${entry.steps.toLocaleString()} steps`}
                       {entry.activity_type && ` · ${entry.activity_type}`}
                       {entry.active_calories != null && ` · ${entry.active_calories} cal`}
+                      {entry.duration_minutes != null && ` · ${entry.duration_minutes} min`}
                     </span>
                     <span className="text-xs text-neutral-600">
-                      {formatDate(entry.activity_date)} · {entry.source}
+                      {entry.started_at
+                        ? new Date(entry.started_at).toLocaleTimeString([], {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })
+                        : formatDate(entry.activity_date)}{' '}
+                      · {entry.source}
                     </span>
                   </div>
                 </li>

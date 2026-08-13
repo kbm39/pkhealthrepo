@@ -258,6 +258,50 @@ create table public.recipes (
 );
 create index idx_recipes_user_time on public.recipes (user_id, created_at desc);
 
+-- ------------------------------------------------------------
+-- ACTIVITY LOGS (Oura or similar wearable — daily summary + detected workouts)
+-- ------------------------------------------------------------
+-- A given day may have ONE day-summary row (activity_type null) plus zero or
+-- more individual detected-activity rows (activity_type set), so a single
+-- screenshot import with multiple workouts inserts multiple rows.
+create table public.activity_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  activity_date date not null,
+  source text not null default 'manual',
+  steps integer,
+  active_calories numeric,          -- day-summary: calories toward activity goal; activity row: that activity's calories
+  total_calories numeric,           -- day-summary only: total burn (active + BMR)
+  goal_calories numeric,            -- day-summary only: daily activity goal target
+  activity_time_minutes integer,    -- day-summary only: total active/exercise minutes for the day
+  activity_type text,               -- set only on individual detected-activity rows
+  duration_minutes integer,         -- set only on individual detected-activity rows
+  avg_heart_rate numeric,           -- set only on individual detected-activity rows
+  started_at timestamptz,           -- clock time an individual activity began; null for day-summary rows
+  created_at timestamptz not null default now()
+);
+create index idx_activity_logs_user_date on public.activity_logs (user_id, activity_date desc);
+
+-- ------------------------------------------------------------
+-- SWIM LOGS
+-- ------------------------------------------------------------
+create table public.swim_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  swim_date date not null,
+  source text not null default 'manual',
+  yardage numeric,
+  distance_unit text default 'yards' check (distance_unit in ('yards','meters')),
+  duration_minutes numeric,         -- numeric (not integer) — Apple Watch reports fractional minutes
+  active_calories numeric,
+  total_calories numeric,
+  avg_heart_rate numeric,
+  stroke_type text,
+  laps integer,
+  created_at timestamptz not null default now()
+);
+create index idx_swim_logs_user_date on public.swim_logs (user_id, swim_date desc);
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -274,6 +318,8 @@ alter table public.vitals enable row level security;
 alter table public.medications enable row level security;
 alter table public.medication_logs enable row level security;
 alter table public.recipes enable row level security;
+alter table public.activity_logs enable row level security;
+alter table public.swim_logs enable row level security;
 
 -- Standard "own data only" policy, repeated per table
 create policy "own profile" on public.profiles for all using (auth.uid() = id);
@@ -291,6 +337,8 @@ create policy "own vitals" on public.vitals for all using (auth.uid() = user_id)
 create policy "own medications" on public.medications for all using (auth.uid() = user_id);
 create policy "own medication logs" on public.medication_logs for all using (auth.uid() = user_id);
 create policy "own recipes" on public.recipes for all using (auth.uid() = user_id);
+create policy "own activity logs" on public.activity_logs for all using (auth.uid() = user_id);
+create policy "own swim logs" on public.swim_logs for all using (auth.uid() = user_id);
 
 -- `foods` table is shared reference data — readable by all authenticated users,
 -- but only the creator (or service role) can edit their own manual entries.

@@ -1,20 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const EXTRACTION_PROMPT = `You are reading screenshots of Oura Ring (or similar wearable app) activity/exercise results — steps, calories burned, and detected workouts. There may be multiple screenshots covering different sections — combine everything you see into one result.
+const EXTRACTION_PROMPT = `You are reading screenshots of Oura Ring (or similar wearable app) activity/exercise results. There may be multiple screenshots covering different sections of the same day — combine everything you see into one result.
 
-Extract the values EXACTLY as shown — do not estimate or infer anything not visible on screen.
+Extract the values EXACTLY as shown — do not estimate or infer anything not visible on screen. Capture EVERY category shown, including:
+- Steps
+- Total Burn (total calories for the day)
+- Goal Progress (e.g. "936 / 450 Cal" — the first number is progress toward the goal, the second is the goal target itself)
+- Activity Time (total daily active/exercise time, e.g. "1h 16m")
+- EVERY individual activity/workout listed (e.g. Swimming, Strength training) — there may be more than one, including duplicates of the same type at different times. For each one capture: the activity name, the clock time it started (exactly as shown, e.g. "8:17 AM"), its duration, its calories, and its average heart rate if shown (use null if the heart rate is blank or shown as "–").
 
 Respond with ONLY a JSON object, no other text, no markdown fences, in exactly this shape:
 {
   "steps": number or null,
-  "active_calories": number or null,
   "total_calories": number or null,
-  "activity_type": string or null (e.g. "Walking", "Running", "Cycling" — the detected workout/activity type if one specific session is shown),
-  "duration_minutes": number or null (duration of the detected activity session, if shown),
-  "avg_heart_rate": number or null
+  "goal_progress_calories": number or null,
+  "goal_target_calories": number or null,
+  "activity_time_minutes": number or null,
+  "activities": [
+    {
+      "activity_type": string,
+      "time_of_day": string or null (exactly as shown, e.g. "8:17 AM"),
+      "duration_minutes": number or null,
+      "calories": number or null,
+      "avg_heart_rate": number or null
+    }
+  ]
 }
 
-If the screenshot shows a whole day's summary (not one specific workout), leave activity_type and duration_minutes null and just fill steps/calories. If the images don't show legible activity data, return all fields as null.`
+If the screenshot doesn't show a given category, leave it null. If no individual activities are visible, return an empty array for "activities". If nothing legible is found at all, return all fields null and an empty activities array.`
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -47,7 +60,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 400,
+        max_tokens: 1200,
         messages: [
           {
             role: 'user',
@@ -75,9 +88,13 @@ export async function POST(request: NextRequest) {
     const parsed = JSON.parse(cleaned)
 
     const found =
-      parsed.steps != null || parsed.active_calories != null || parsed.total_calories != null
+      parsed.steps != null ||
+      parsed.total_calories != null ||
+      parsed.goal_progress_calories != null ||
+      parsed.activity_time_minutes != null ||
+      (Array.isArray(parsed.activities) && parsed.activities.length > 0)
 
-    return NextResponse.json({ found, ...parsed })
+    return NextResponse.json({ found, ...parsed, activities: parsed.activities ?? [] })
   } catch {
     return NextResponse.json(
       { error: "Couldn't read that screenshot. Try a clearer, uncropped shot of the results screen." },
