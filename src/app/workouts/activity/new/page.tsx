@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import { todayDateKey } from '@/components/LocalDateTime'
+import { resolveDateLabel, combineDateAndTime } from '@/lib/screenshot-date'
 
 interface ActivityEntry {
   activityType: string
@@ -43,50 +44,6 @@ function emptyDayGroup(date: string): DayGroup {
     activityTimeMinutes: '',
     activities: [],
   }
-}
-
-function formatDateKey(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-/** Best-effort resolution of an on-screen date label ("Today", "Yesterday", "Aug 5") to YYYY-MM-DD. Returns '' if unresolvable. */
-function resolveDateLabel(label: string | null): string {
-  if (!label) return ''
-  const norm = label.trim().toLowerCase()
-  const today = new Date()
-  if (norm === 'today') return formatDateKey(today)
-  if (norm === 'yesterday') {
-    const d = new Date(today)
-    d.setDate(d.getDate() - 1)
-    return formatDateKey(d)
-  }
-  const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
-  const match = label.trim().match(/^([A-Za-z]{3,9})\s+(\d{1,2})/)
-  if (match) {
-    const mIdx = monthNames.findIndex((m) => match[1].toLowerCase().startsWith(m))
-    if (mIdx >= 0) {
-      const day = parseInt(match[2], 10)
-      const d = new Date(today.getFullYear(), mIdx, day)
-      if (d.getTime() > today.getTime() + 86400000) d.setFullYear(d.getFullYear() - 1)
-      return formatDateKey(d)
-    }
-  }
-  return ''
-}
-
-/** Combines a YYYY-MM-DD date with a "8:17 AM" style time into an ISO string, or null if unparseable. */
-function combineDateAndTime(dateKey: string, timeOfDay: string): string | null {
-  const match = timeOfDay.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
-  if (!match || !dateKey) return null
-  let hours = parseInt(match[1], 10)
-  const minutes = parseInt(match[2], 10)
-  const meridiem = match[3].toUpperCase()
-  if (meridiem === 'PM' && hours !== 12) hours += 12
-  if (meridiem === 'AM' && hours === 12) hours = 0
-  const [year, month, day] = dateKey.split('-').map(Number)
-  const d = new Date(year, month - 1, day, hours, minutes)
-  return d.toISOString()
 }
 
 export default function NewActivityPage() {

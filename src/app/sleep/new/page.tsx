@@ -6,6 +6,106 @@ import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import { todayDateKey } from '@/components/LocalDateTime'
+import { resolveDateLabel } from '@/lib/screenshot-date'
+
+interface SleepGroup {
+  key: string
+  date: string
+  dateGuessLabel: string | null
+  totalSleep: string
+  lightSleep: string
+  deepSleep: string
+  remSleep: string
+  awake: string
+  sleepScore: string
+  avgHeartRate: string
+  avgRespiratoryRate: string
+  respRateMin: string
+  respRateMax: string
+  hrvFirst90: string
+  hrvLast90: string
+  sleepLatency: string
+  timeToGetUp: string
+  interruptions: string
+  regularityRating: string
+  depthRating: string
+  breathingQuality: string
+  snoringMinutes: string
+  source: 'manual' | 'oura' | 'withings' | 'oura+withings'
+}
+
+function emptySleepGroup(date: string): SleepGroup {
+  return {
+    key: Math.random().toString(36).slice(2),
+    date,
+    dateGuessLabel: null,
+    totalSleep: '',
+    lightSleep: '',
+    deepSleep: '',
+    remSleep: '',
+    awake: '',
+    sleepScore: '',
+    avgHeartRate: '',
+    avgRespiratoryRate: '',
+    respRateMin: '',
+    respRateMax: '',
+    hrvFirst90: '',
+    hrvLast90: '',
+    sleepLatency: '',
+    timeToGetUp: '',
+    interruptions: '',
+    regularityRating: '',
+    depthRating: '',
+    breathingQuality: '',
+    snoringMinutes: '',
+    source: 'manual',
+  }
+}
+
+function isBlank(g: SleepGroup): boolean {
+  return (
+    !g.totalSleep &&
+    !g.lightSleep &&
+    !g.deepSleep &&
+    !g.remSleep &&
+    !g.awake &&
+    !g.sleepScore &&
+    !g.avgHeartRate &&
+    !g.avgRespiratoryRate &&
+    !g.hrvFirst90 &&
+    !g.hrvLast90 &&
+    !g.sleepLatency &&
+    !g.timeToGetUp &&
+    !g.interruptions &&
+    !g.regularityRating &&
+    !g.depthRating &&
+    !g.breathingQuality &&
+    !g.snoringMinutes
+  )
+}
+
+type ParsedResult = {
+  date_label: string | null
+  total_sleep_minutes: number | null
+  light_sleep_minutes: number | null
+  deep_sleep_minutes: number | null
+  rem_sleep_minutes: number | null
+  awake_minutes: number | null
+  sleep_score: number | null
+  avg_heart_rate: number | null
+  avg_respiratory_rate: number | null
+  respiratory_rate_min: number | null
+  respiratory_rate_max: number | null
+  snoring_minutes?: number | null
+  hrv_first_90_ms: number | null
+  hrv_last_90_ms: number | null
+  sleep_latency_minutes: number | null
+  time_to_get_up_minutes: number | null
+  interruptions_count: number | null
+  regularity_rating: string | null
+  depth_rating: string | null
+  breathing_quality_assessment?: string | null
+}
 
 export default function NewSleepPage() {
   const router = useRouter()
@@ -13,37 +113,13 @@ export default function NewSleepPage() {
   const ouraInputRef = useRef<HTMLInputElement>(null)
   const withingsInputRef = useRef<HTMLInputElement>(null)
 
-  const [sleepDate, setSleepDate] = useState(todayDateKey())
-  const [totalSleep, setTotalSleep] = useState('')
-  const [lightSleep, setLightSleep] = useState('')
-  const [deepSleep, setDeepSleep] = useState('')
-  const [remSleep, setRemSleep] = useState('')
-  const [awake, setAwake] = useState('')
-  const [sleepScore, setSleepScore] = useState('')
-  const [avgHeartRate, setAvgHeartRate] = useState('')
-  const [avgRespiratoryRate, setAvgRespiratoryRate] = useState('')
-  const [respRateMin, setRespRateMin] = useState('')
-  const [respRateMax, setRespRateMax] = useState('')
-  const [hrvFirst90, setHrvFirst90] = useState('')
-  const [hrvLast90, setHrvLast90] = useState('')
-  const [sleepLatency, setSleepLatency] = useState('')
-  const [timeToGetUp, setTimeToGetUp] = useState('')
-  const [interruptions, setInterruptions] = useState('')
-  const [regularityRating, setRegularityRating] = useState('')
-  const [depthRating, setDepthRating] = useState('')
-  const [breathingQuality, setBreathingQuality] = useState('')
-  const [snoringMinutes, setSnoringMinutes] = useState('')
-  const [source, setSource] = useState<'manual' | 'oura' | 'withings'>('manual')
+  const [sleepGroups, setSleepGroups] = useState<SleepGroup[]>([emptySleepGroup(todayDateKey())])
 
   const [scanning, setScanning] = useState<'oura' | 'withings' | null>(null)
   const [screenshotError, setScreenshotError] = useState<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-
-  function markManual() {
-    setSource('manual')
-  }
 
   async function handleScreenshotsSelected(
     e: React.ChangeEvent<HTMLInputElement>,
@@ -79,28 +155,74 @@ export default function NewSleepPage() {
         return
       }
 
-      if (data.total_sleep_minutes != null) setTotalSleep(String(data.total_sleep_minutes))
-      if (data.light_sleep_minutes != null) setLightSleep(String(data.light_sleep_minutes))
-      if (data.deep_sleep_minutes != null) setDeepSleep(String(data.deep_sleep_minutes))
-      if (data.rem_sleep_minutes != null) setRemSleep(String(data.rem_sleep_minutes))
-      if (data.awake_minutes != null) setAwake(String(data.awake_minutes))
-      if (data.sleep_score != null) setSleepScore(String(data.sleep_score))
-      if (data.avg_heart_rate != null) setAvgHeartRate(String(data.avg_heart_rate))
-      if (data.avg_respiratory_rate != null)
-        setAvgRespiratoryRate(String(data.avg_respiratory_rate))
-      if (data.respiratory_rate_min != null) setRespRateMin(String(data.respiratory_rate_min))
-      if (data.respiratory_rate_max != null) setRespRateMax(String(data.respiratory_rate_max))
-      if (data.hrv_first_90_ms != null) setHrvFirst90(String(data.hrv_first_90_ms))
-      if (data.hrv_last_90_ms != null) setHrvLast90(String(data.hrv_last_90_ms))
-      if (data.sleep_latency_minutes != null) setSleepLatency(String(data.sleep_latency_minutes))
-      if (data.time_to_get_up_minutes != null)
-        setTimeToGetUp(String(data.time_to_get_up_minutes))
-      if (data.interruptions_count != null) setInterruptions(String(data.interruptions_count))
-      if (data.regularity_rating) setRegularityRating(data.regularity_rating)
-      if (data.depth_rating) setDepthRating(data.depth_rating)
-      if (data.breathing_quality_assessment) setBreathingQuality(data.breathing_quality_assessment)
-      if (data.snoring_minutes != null) setSnoringMinutes(String(data.snoring_minutes))
-      setSource(device)
+      const results: ParsedResult[] = data.results ?? []
+
+      setSleepGroups((prev) => {
+        const base = prev.filter((g) => !isBlank(g))
+        const next = [...base]
+
+        for (const r of results) {
+          const resolvedDate = resolveDateLabel(r.date_label)
+          const existing = resolvedDate ? next.find((g) => g.date === resolvedDate) : undefined
+
+          const fillIfBlank = (curr: string, val: number | string | null | undefined) =>
+            !curr && val != null ? String(val) : curr
+
+          if (existing) {
+            existing.totalSleep = fillIfBlank(existing.totalSleep, r.total_sleep_minutes)
+            existing.lightSleep = fillIfBlank(existing.lightSleep, r.light_sleep_minutes)
+            existing.deepSleep = fillIfBlank(existing.deepSleep, r.deep_sleep_minutes)
+            existing.remSleep = fillIfBlank(existing.remSleep, r.rem_sleep_minutes)
+            existing.awake = fillIfBlank(existing.awake, r.awake_minutes)
+            existing.sleepScore = fillIfBlank(existing.sleepScore, r.sleep_score)
+            existing.avgHeartRate = fillIfBlank(existing.avgHeartRate, r.avg_heart_rate)
+            existing.avgRespiratoryRate = fillIfBlank(existing.avgRespiratoryRate, r.avg_respiratory_rate)
+            existing.respRateMin = fillIfBlank(existing.respRateMin, r.respiratory_rate_min)
+            existing.respRateMax = fillIfBlank(existing.respRateMax, r.respiratory_rate_max)
+            existing.hrvFirst90 = fillIfBlank(existing.hrvFirst90, r.hrv_first_90_ms)
+            existing.hrvLast90 = fillIfBlank(existing.hrvLast90, r.hrv_last_90_ms)
+            existing.sleepLatency = fillIfBlank(existing.sleepLatency, r.sleep_latency_minutes)
+            existing.timeToGetUp = fillIfBlank(existing.timeToGetUp, r.time_to_get_up_minutes)
+            existing.interruptions = fillIfBlank(existing.interruptions, r.interruptions_count)
+            existing.regularityRating = fillIfBlank(existing.regularityRating, r.regularity_rating)
+            existing.depthRating = fillIfBlank(existing.depthRating, r.depth_rating)
+            existing.breathingQuality = fillIfBlank(existing.breathingQuality, r.breathing_quality_assessment)
+            existing.snoringMinutes = fillIfBlank(existing.snoringMinutes, r.snoring_minutes)
+            existing.source = existing.source === 'manual' || existing.source === device
+              ? device
+              : 'oura+withings'
+            continue
+          }
+
+          next.push({
+            key: Math.random().toString(36).slice(2),
+            date: resolvedDate,
+            dateGuessLabel: r.date_label,
+            totalSleep: r.total_sleep_minutes != null ? String(r.total_sleep_minutes) : '',
+            lightSleep: r.light_sleep_minutes != null ? String(r.light_sleep_minutes) : '',
+            deepSleep: r.deep_sleep_minutes != null ? String(r.deep_sleep_minutes) : '',
+            remSleep: r.rem_sleep_minutes != null ? String(r.rem_sleep_minutes) : '',
+            awake: r.awake_minutes != null ? String(r.awake_minutes) : '',
+            sleepScore: r.sleep_score != null ? String(r.sleep_score) : '',
+            avgHeartRate: r.avg_heart_rate != null ? String(r.avg_heart_rate) : '',
+            avgRespiratoryRate: r.avg_respiratory_rate != null ? String(r.avg_respiratory_rate) : '',
+            respRateMin: r.respiratory_rate_min != null ? String(r.respiratory_rate_min) : '',
+            respRateMax: r.respiratory_rate_max != null ? String(r.respiratory_rate_max) : '',
+            hrvFirst90: r.hrv_first_90_ms != null ? String(r.hrv_first_90_ms) : '',
+            hrvLast90: r.hrv_last_90_ms != null ? String(r.hrv_last_90_ms) : '',
+            sleepLatency: r.sleep_latency_minutes != null ? String(r.sleep_latency_minutes) : '',
+            timeToGetUp: r.time_to_get_up_minutes != null ? String(r.time_to_get_up_minutes) : '',
+            interruptions: r.interruptions_count != null ? String(r.interruptions_count) : '',
+            regularityRating: r.regularity_rating ?? '',
+            depthRating: r.depth_rating ?? '',
+            breathingQuality: r.breathing_quality_assessment ?? '',
+            snoringMinutes: r.snoring_minutes != null ? String(r.snoring_minutes) : '',
+            source: device,
+          })
+        }
+
+        return next.length > 0 ? next : [emptySleepGroup(todayDateKey())]
+      })
     } catch {
       setScreenshotError("Couldn't read those screenshots. Try clearer shots, or enter values manually.")
     }
@@ -110,9 +232,29 @@ export default function NewSleepPage() {
     if (device === 'withings' && withingsInputRef.current) withingsInputRef.current.value = ''
   }
 
+  function updateGroup(key: string, field: keyof SleepGroup, value: string) {
+    setSleepGroups((prev) =>
+      prev.map((g) => (g.key === key ? { ...g, [field]: value, source: 'manual' } : g))
+    )
+  }
+
+  function removeGroup(key: string) {
+    setSleepGroups((prev) => prev.filter((g) => g.key !== key))
+  }
+
+  function addGroup() {
+    setSleepGroups((prev) => [...prev, emptySleepGroup(todayDateKey())])
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (sleepGroups.some((g) => !g.date)) {
+      setError("One or more nights couldn't be dated automatically — pick a date for each before saving.")
+      return
+    }
+
     setSaving(true)
 
     const {
@@ -125,30 +267,40 @@ export default function NewSleepPage() {
       return
     }
 
-    const { error } = await supabase.from('sleep_logs').insert({
-      user_id: user.id,
-      sleep_date: sleepDate,
-      source,
-      total_sleep_minutes: totalSleep ? Number(totalSleep) : null,
-      light_sleep_minutes: lightSleep ? Number(lightSleep) : null,
-      deep_sleep_minutes: deepSleep ? Number(deepSleep) : null,
-      rem_sleep_minutes: remSleep ? Number(remSleep) : null,
-      awake_minutes: awake ? Number(awake) : null,
-      sleep_score: sleepScore ? Number(sleepScore) : null,
-      avg_heart_rate: avgHeartRate ? Number(avgHeartRate) : null,
-      avg_respiratory_rate: avgRespiratoryRate ? Number(avgRespiratoryRate) : null,
-      respiratory_rate_min: respRateMin ? Number(respRateMin) : null,
-      respiratory_rate_max: respRateMax ? Number(respRateMax) : null,
-      hrv_first_90_ms: hrvFirst90 ? Number(hrvFirst90) : null,
-      hrv_last_90_ms: hrvLast90 ? Number(hrvLast90) : null,
-      sleep_latency_minutes: sleepLatency ? Number(sleepLatency) : null,
-      time_to_get_up_minutes: timeToGetUp ? Number(timeToGetUp) : null,
-      interruptions_count: interruptions ? Number(interruptions) : null,
-      regularity_rating: regularityRating || null,
-      depth_rating: depthRating || null,
-      breathing_quality_assessment: breathingQuality || null,
-      snoring_minutes: snoringMinutes ? Number(snoringMinutes) : null,
-    })
+    const rows = sleepGroups
+      .filter((g) => !isBlank(g))
+      .map((g) => ({
+        user_id: user.id,
+        sleep_date: g.date,
+        source: g.source === 'oura+withings' ? 'oura' : g.source,
+        total_sleep_minutes: g.totalSleep ? Number(g.totalSleep) : null,
+        light_sleep_minutes: g.lightSleep ? Number(g.lightSleep) : null,
+        deep_sleep_minutes: g.deepSleep ? Number(g.deepSleep) : null,
+        rem_sleep_minutes: g.remSleep ? Number(g.remSleep) : null,
+        awake_minutes: g.awake ? Number(g.awake) : null,
+        sleep_score: g.sleepScore ? Number(g.sleepScore) : null,
+        avg_heart_rate: g.avgHeartRate ? Number(g.avgHeartRate) : null,
+        avg_respiratory_rate: g.avgRespiratoryRate ? Number(g.avgRespiratoryRate) : null,
+        respiratory_rate_min: g.respRateMin ? Number(g.respRateMin) : null,
+        respiratory_rate_max: g.respRateMax ? Number(g.respRateMax) : null,
+        hrv_first_90_ms: g.hrvFirst90 ? Number(g.hrvFirst90) : null,
+        hrv_last_90_ms: g.hrvLast90 ? Number(g.hrvLast90) : null,
+        sleep_latency_minutes: g.sleepLatency ? Number(g.sleepLatency) : null,
+        time_to_get_up_minutes: g.timeToGetUp ? Number(g.timeToGetUp) : null,
+        interruptions_count: g.interruptions ? Number(g.interruptions) : null,
+        regularity_rating: g.regularityRating || null,
+        depth_rating: g.depthRating || null,
+        breathing_quality_assessment: g.breathingQuality || null,
+        snoring_minutes: g.snoringMinutes ? Number(g.snoringMinutes) : null,
+      }))
+
+    if (rows.length === 0) {
+      setError('Add at least total sleep or a sleep score before saving.')
+      setSaving(false)
+      return
+    }
+
+    const { error } = await supabase.from('sleep_logs').insert(rows)
 
     setSaving(false)
 
@@ -162,9 +314,10 @@ export default function NewSleepPage() {
   }
 
   function numberField(
+    groupKey: string,
+    field: keyof SleepGroup,
     label: string,
     value: string,
-    setValue: (v: string) => void,
     step?: string
   ) {
     return (
@@ -174,10 +327,7 @@ export default function NewSleepPage() {
           type="number"
           step={step}
           value={value}
-          onChange={(e) => {
-            setValue(e.target.value)
-            markManual()
-          }}
+          onChange={(e) => updateGroup(groupKey, field, e.target.value)}
           className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
         />
       </div>
@@ -232,111 +382,137 @@ export default function NewSleepPage() {
           </div>
         </div>
         <p className="text-xs text-neutral-600">
-          You can select multiple screenshots at once (e.g. duration, HRV, heart rate, and score
-          screens) — they&apos;ll be combined into one entry.
+          Select multiple screenshots at once — even from different nights. Screenshots detected
+          as the same night are merged into one entry; different nights become separate entries
+          below. Double-check the detected dates before saving.
         </p>
         {screenshotError && (
           <p className="text-xs text-red-600" role="alert">
             {screenshotError}
           </p>
         )}
-        {source !== 'manual' && (
-          <p className="text-xs text-green-700">
-            Fields below filled from {source === 'oura' ? 'Oura' : 'Withings'} — review before
-            saving.
-          </p>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Sleep date
-            </label>
-            <input
-              type="date"
-              value={sleepDate}
-              onChange={(e) => setSleepDate(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {sleepGroups.map((g) => (
+            <div key={g.key} className="rounded-lg border border-neutral-200 bg-white p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Sleep date
+                    {g.dateGuessLabel && (
+                      <span className="text-xs text-neutral-500 font-normal">
+                        {' '}
+                        — detected &quot;{g.dateGuessLabel}&quot;
+                      </span>
+                    )}
+                    {g.source !== 'manual' && (
+                      <span className="text-xs text-green-700 font-normal">
+                        {' '}
+                        · filled from {g.source === 'oura+withings' ? 'Oura + Withings' : g.source}
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="date"
+                    value={g.date}
+                    onChange={(e) => updateGroup(g.key, 'date', e.target.value)}
+                    className={`w-full rounded-md border px-3 py-2 text-sm ${
+                      g.date ? 'border-neutral-300' : 'border-red-400'
+                    }`}
+                  />
+                  {!g.date && (
+                    <p className="text-xs text-red-600 mt-1">Pick a date for this entry.</p>
+                  )}
+                </div>
+                {sleepGroups.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeGroup(g.key)}
+                    className="text-xs text-red-600 underline underline-offset-2 ml-3 shrink-0"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {numberField('Total sleep (min)', totalSleep, setTotalSleep)}
-            {numberField('Sleep score', sleepScore, setSleepScore)}
-            {numberField('Light sleep (min)', lightSleep, setLightSleep)}
-            {numberField('Deep sleep (min)', deepSleep, setDeepSleep)}
-            {numberField('REM sleep (min)', remSleep, setRemSleep)}
-            {numberField('Awake (min)', awake, setAwake)}
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                {numberField(g.key, 'totalSleep', 'Total sleep (min)', g.totalSleep)}
+                {numberField(g.key, 'sleepScore', 'Sleep score', g.sleepScore)}
+                {numberField(g.key, 'lightSleep', 'Light sleep (min)', g.lightSleep)}
+                {numberField(g.key, 'deepSleep', 'Deep sleep (min)', g.deepSleep)}
+                {numberField(g.key, 'remSleep', 'REM sleep (min)', g.remSleep)}
+                {numberField(g.key, 'awake', 'Awake (min)', g.awake)}
+              </div>
 
-          <div className="pt-2 border-t border-neutral-100">
-            <p className="text-xs font-medium text-neutral-700 mb-2">Heart & breathing</p>
-            <div className="grid grid-cols-2 gap-3">
-              {numberField('Avg heart rate', avgHeartRate, setAvgHeartRate)}
-              {numberField('Avg resp. rate', avgRespiratoryRate, setAvgRespiratoryRate, '0.1')}
-              {numberField('Resp. rate min', respRateMin, setRespRateMin, '0.1')}
-              {numberField('Resp. rate max', respRateMax, setRespRateMax, '0.1')}
-              {numberField('Snoring (min)', snoringMinutes, setSnoringMinutes)}
-            </div>
-          </div>
+              <div className="pt-2 border-t border-neutral-100">
+                <p className="text-xs font-medium text-neutral-700 mb-2">Heart & breathing</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {numberField(g.key, 'avgHeartRate', 'Avg heart rate', g.avgHeartRate)}
+                  {numberField(g.key, 'avgRespiratoryRate', 'Avg resp. rate', g.avgRespiratoryRate, '0.1')}
+                  {numberField(g.key, 'respRateMin', 'Resp. rate min', g.respRateMin, '0.1')}
+                  {numberField(g.key, 'respRateMax', 'Resp. rate max', g.respRateMax, '0.1')}
+                  {numberField(g.key, 'snoringMinutes', 'Snoring (min)', g.snoringMinutes)}
+                </div>
+              </div>
 
-          <div className="pt-2 border-t border-neutral-100">
-            <p className="text-xs font-medium text-neutral-700 mb-2">HRV & recovery</p>
-            <div className="grid grid-cols-2 gap-3">
-              {numberField('HRV first 90min (ms)', hrvFirst90, setHrvFirst90)}
-              {numberField('HRV last 90min (ms)', hrvLast90, setHrvLast90)}
-              {numberField('Time to sleep (min)', sleepLatency, setSleepLatency)}
-              {numberField('Time to get up (min)', timeToGetUp, setTimeToGetUp)}
-              {numberField('Interruptions', interruptions, setInterruptions)}
-            </div>
-          </div>
+              <div className="pt-2 border-t border-neutral-100">
+                <p className="text-xs font-medium text-neutral-700 mb-2">HRV & recovery</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {numberField(g.key, 'hrvFirst90', 'HRV first 90min (ms)', g.hrvFirst90)}
+                  {numberField(g.key, 'hrvLast90', 'HRV last 90min (ms)', g.hrvLast90)}
+                  {numberField(g.key, 'sleepLatency', 'Time to sleep (min)', g.sleepLatency)}
+                  {numberField(g.key, 'timeToGetUp', 'Time to get up (min)', g.timeToGetUp)}
+                  {numberField(g.key, 'interruptions', 'Interruptions', g.interruptions)}
+                </div>
+              </div>
 
-          <div className="pt-2 border-t border-neutral-100 space-y-3">
-            <p className="text-xs font-medium text-neutral-700">Quality ratings</p>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Regularity
-              </label>
-              <input
-                type="text"
-                value={regularityRating}
-                onChange={(e) => {
-                  setRegularityRating(e.target.value)
-                  markManual()
-                }}
-                placeholder="e.g. Good"
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
+              <div className="pt-2 border-t border-neutral-100 space-y-3">
+                <p className="text-xs font-medium text-neutral-700">Quality ratings</p>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Regularity
+                  </label>
+                  <input
+                    type="text"
+                    value={g.regularityRating}
+                    onChange={(e) => updateGroup(g.key, 'regularityRating', e.target.value)}
+                    placeholder="e.g. Good"
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Depth</label>
+                  <input
+                    type="text"
+                    value={g.depthRating}
+                    onChange={(e) => updateGroup(g.key, 'depthRating', e.target.value)}
+                    placeholder="e.g. Good"
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Breathing quality
+                  </label>
+                  <input
+                    type="text"
+                    value={g.breathingQuality}
+                    onChange={(e) => updateGroup(g.key, 'breathingQuality', e.target.value)}
+                    placeholder="e.g. Optimal"
+                    className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">Depth</label>
-              <input
-                type="text"
-                value={depthRating}
-                onChange={(e) => {
-                  setDepthRating(e.target.value)
-                  markManual()
-                }}
-                placeholder="e.g. Good"
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-1">
-                Breathing quality
-              </label>
-              <input
-                type="text"
-                value={breathingQuality}
-                onChange={(e) => {
-                  setBreathingQuality(e.target.value)
-                  markManual()
-                }}
-                placeholder="e.g. Optimal"
-                className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addGroup}
+            className="w-full rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-50"
+          >
+            + Add another night
+          </button>
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
@@ -349,7 +525,7 @@ export default function NewSleepPage() {
             disabled={saving}
             className="w-full rounded-md bg-neutral-900 text-white text-sm font-medium py-2 hover:bg-neutral-800 disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save entry'}
+            {saving ? 'Saving…' : `Save ${sleepGroups.length > 1 ? `${sleepGroups.length} entries` : 'entry'}`}
           </button>
         </form>
       </div>
