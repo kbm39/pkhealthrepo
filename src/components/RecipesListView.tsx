@@ -40,6 +40,10 @@ export default function RecipesListView({ recipes }: { recipes: RecipeListItem[]
   const [search, setSearch] = useState('')
   const [loggingId, setLoggingId] = useState<string | null>(null)
   const [loggedId, setLoggedId] = useState<string | null>(null)
+  const [loggedNutrition, setLoggedNutrition] = useState<Pick<
+    RecipeListItem,
+    'calories' | 'protein_g' | 'carbs_g' | 'fat_g' | 'fiber_g' | 'sugar_g'
+  > | null>(null)
   const [errorId, setErrorId] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
@@ -128,6 +132,14 @@ export default function RecipesListView({ recipes }: { recipes: RecipeListItem[]
 
     setLoggingId(null)
     setLoggedId(recipe.id)
+    setLoggedNutrition({
+      calories: recipe.calories,
+      protein_g: recipe.protein_g,
+      carbs_g: recipe.carbs_g,
+      fat_g: recipe.fat_g,
+      fiber_g: recipe.fiber_g,
+      sugar_g: recipe.sugar_g,
+    })
   }
 
   return (
@@ -183,6 +195,21 @@ export default function RecipesListView({ recipes }: { recipes: RecipeListItem[]
                 <p className="text-xs text-red-600 mt-2" role="alert">
                   Couldn&apos;t log this recipe. Try again or open it to log manually.
                 </p>
+              )}
+              {loggedId === recipe.id && loggedNutrition && (
+                <div className="mt-2 rounded-md bg-green-50 border border-green-200 px-3 py-2">
+                  <p className="text-xs font-medium text-green-900 mb-1">
+                    Logged to today&apos;s diary ({defaultMealType()}, 1 serving)
+                  </p>
+                  <div className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-xs text-green-800">
+                    <p>{loggedNutrition.calories ?? '—'} cal</p>
+                    <p>{loggedNutrition.protein_g ?? '—'}g protein</p>
+                    <p>{loggedNutrition.carbs_g ?? '—'}g carbs</p>
+                    <p>{loggedNutrition.fat_g ?? '—'}g fat</p>
+                    <p>{loggedNutrition.fiber_g ?? '—'}g fiber</p>
+                    <p>{loggedNutrition.sugar_g ?? '—'}g sugar</p>
+                  </div>
+                </div>
               )}
             </li>
           ))}
