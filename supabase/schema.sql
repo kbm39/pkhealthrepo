@@ -55,7 +55,7 @@ create table public.foods (
   sugar_g numeric,
   sodium_mg numeric,
   micronutrients jsonb,             -- flexible store: {"vitamin_d_mcg": 5, "iron_mg": 2.1, ...}
-  source text check (source in ('barcode_openfoodfacts','usda','plate_scan_ai','manual')),
+  source text check (source in ('barcode_openfoodfacts','usda','plate_scan_ai','manual','recipe_ai')),
   created_by uuid references public.profiles(id),
   created_at timestamptz not null default now()
 );
@@ -91,7 +91,7 @@ create table public.meal_logs (
   sugar_g numeric,
   sodium_mg numeric,
   micronutrients jsonb,
-  entry_method text check (entry_method in ('barcode','plate_scan','manual','food_bank')),
+  entry_method text check (entry_method in ('barcode','plate_scan','manual','food_bank','recipe')),
   photo_url text,                                  -- stored plate-scan photo, if applicable
   created_at timestamptz not null default now()
 );
@@ -233,6 +233,31 @@ create table public.medication_logs (
 );
 create index idx_medication_logs_user_time on public.medication_logs (user_id, scheduled_for);
 
+-- ------------------------------------------------------------
+-- RECIPES (AI-generated low-glycemic recipes)
+-- ------------------------------------------------------------
+create table public.recipes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  title text not null,
+  servings numeric not null default 1,
+  input_type text not null check (input_type in ('ingredients','craving','both')),
+  input_query text not null,
+  ingredients jsonb not null,        -- [{ name, amount, unit }]
+  instructions jsonb not null,       -- [step, step, ...]
+  glycemic_notes text,               -- plain-language explanation of why it's low-GI
+  -- nutrition estimate, PER SERVING (AI estimate — same honesty standard as other AI features)
+  calories numeric,
+  protein_g numeric,
+  carbs_g numeric,
+  fat_g numeric,
+  fiber_g numeric,
+  sugar_g numeric,
+  food_id uuid references public.foods(id),  -- linked foods row for re-logging via food bank
+  created_at timestamptz not null default now()
+);
+create index idx_recipes_user_time on public.recipes (user_id, created_at desc);
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -248,6 +273,7 @@ alter table public.sleep_logs enable row level security;
 alter table public.vitals enable row level security;
 alter table public.medications enable row level security;
 alter table public.medication_logs enable row level security;
+alter table public.recipes enable row level security;
 
 -- Standard "own data only" policy, repeated per table
 create policy "own profile" on public.profiles for all using (auth.uid() = id);
@@ -264,6 +290,7 @@ create policy "own sleep" on public.sleep_logs for all using (auth.uid() = user_
 create policy "own vitals" on public.vitals for all using (auth.uid() = user_id);
 create policy "own medications" on public.medications for all using (auth.uid() = user_id);
 create policy "own medication logs" on public.medication_logs for all using (auth.uid() = user_id);
+create policy "own recipes" on public.recipes for all using (auth.uid() = user_id);
 
 -- `foods` table is shared reference data — readable by all authenticated users,
 -- but only the creator (or service role) can edit their own manual entries.

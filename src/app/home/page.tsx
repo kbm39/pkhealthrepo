@@ -39,6 +39,11 @@ const topics: TopicLink[] = [
     title: 'Vitals',
     description: 'Blood pressure and glucose — manual entry or screenshot import',
   },
+  {
+    href: '/recipes',
+    title: 'Recipes',
+    description: 'Generate low-glycemic recipes from ingredients you have or a craving',
+  },
 ]
 
 export default async function HomePage() {
