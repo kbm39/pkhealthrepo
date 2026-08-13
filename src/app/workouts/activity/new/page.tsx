@@ -15,14 +15,70 @@ interface ActivityEntry {
   avgHeartRate: string
 }
 
+interface DayGroup {
+  key: string
+  date: string // YYYY-MM-DD, may be '' if it couldn't be resolved and needs the user to pick one
+  dateGuessLabel: string | null // what was detected on screen, shown as a hint (e.g. "Today", "Aug 5")
+  steps: string
+  goalProgressCalories: string
+  goalCalories: string
+  totalCalories: string
+  activityTimeMinutes: string
+  activities: ActivityEntry[]
+}
+
 function emptyActivity(): ActivityEntry {
   return { activityType: '', timeOfDay: '', durationMinutes: '', calories: '', avgHeartRate: '' }
+}
+
+function emptyDayGroup(date: string): DayGroup {
+  return {
+    key: Math.random().toString(36).slice(2),
+    date,
+    dateGuessLabel: null,
+    steps: '',
+    goalProgressCalories: '',
+    goalCalories: '',
+    totalCalories: '',
+    activityTimeMinutes: '',
+    activities: [],
+  }
+}
+
+function formatDateKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Best-effort resolution of an on-screen date label ("Today", "Yesterday", "Aug 5") to YYYY-MM-DD. Returns '' if unresolvable. */
+function resolveDateLabel(label: string | null): string {
+  if (!label) return ''
+  const norm = label.trim().toLowerCase()
+  const today = new Date()
+  if (norm === 'today') return formatDateKey(today)
+  if (norm === 'yesterday') {
+    const d = new Date(today)
+    d.setDate(d.getDate() - 1)
+    return formatDateKey(d)
+  }
+  const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+  const match = label.trim().match(/^([A-Za-z]{3,9})\s+(\d{1,2})/)
+  if (match) {
+    const mIdx = monthNames.findIndex((m) => match[1].toLowerCase().startsWith(m))
+    if (mIdx >= 0) {
+      const day = parseInt(match[2], 10)
+      const d = new Date(today.getFullYear(), mIdx, day)
+      if (d.getTime() > today.getTime() + 86400000) d.setFullYear(d.getFullYear() - 1)
+      return formatDateKey(d)
+    }
+  }
+  return ''
 }
 
 /** Combines a YYYY-MM-DD date with a "8:17 AM" style time into an ISO string, or null if unparseable. */
 function combineDateAndTime(dateKey: string, timeOfDay: string): string | null {
   const match = timeOfDay.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
-  if (!match) return null
+  if (!match || !dateKey) return null
   let hours = parseInt(match[1], 10)
   const minutes = parseInt(match[2], 10)
   const meridiem = match[3].toUpperCase()
@@ -38,15 +94,8 @@ export default function NewActivityPage() {
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [activityDate, setActivityDate] = useState(todayDateKey())
-  const [steps, setSteps] = useState('')
-  const [goalProgressCalories, setGoalProgressCalories] = useState('')
-  const [goalCalories, setGoalCalories] = useState('')
-  const [totalCalories, setTotalCalories] = useState('')
-  const [activityTimeMinutes, setActivityTimeMinutes] = useState('')
+  const [dayGroups, setDayGroups] = useState<DayGroup[]>([emptyDayGroup(todayDateKey())])
   const [source, setSource] = useState<'manual' | 'oura'>('manual')
-
-  const [activities, setActivities] = useState<ActivityEntry[]>([])
 
   const [scanning, setScanning] = useState(false)
   const [screenshotError, setScreenshotError] = useState<string | null>(null)
@@ -75,60 +124,137 @@ export default function NewActivityPage() {
       if (!res.ok || !data.found) {
         setScreenshotError(
           data.error ||
-            "Couldn't read activity results in that screenshot. Try a clearer shot, or enter values manually."
+            "Couldn't read activity results in those screenshots. Try clearer shots, or enter values manually."
         )
         setScanning(false)
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
 
-      if (data.steps != null) setSteps(String(data.steps))
-      if (data.goal_progress_calories != null) setGoalProgressCalories(String(data.goal_progress_calories))
-      if (data.goal_target_calories != null) setGoalCalories(String(data.goal_target_calories))
-      if (data.total_calories != null) setTotalCalories(String(data.total_calories))
-      if (data.activity_time_minutes != null) setActivityTimeMinutes(String(data.activity_time_minutes))
-
-      if (Array.isArray(data.activities) && data.activities.length > 0) {
-        setActivities((prev) => [
-          ...prev,
-          ...data.activities.map(
-            (a: {
-              activity_type?: string
-              time_of_day?: string | null
-              duration_minutes?: number | null
-              calories?: number | null
-              avg_heart_rate?: number | null
-            }) => ({
-              activityType: a.activity_type ?? '',
-              timeOfDay: a.time_of_day ?? '',
-              durationMinutes: a.duration_minutes != null ? String(a.duration_minutes) : '',
-              calories: a.calories != null ? String(a.calories) : '',
-              avgHeartRate: a.avg_heart_rate != null ? String(a.avg_heart_rate) : '',
-            })
-          ),
-        ])
+      type ParsedResult = {
+        date_label: string | null
+        steps: number | null
+        total_calories: number | null
+        goal_progress_calories: number | null
+        goal_target_calories: number | null
+        activity_time_minutes: number | null
+        activities: {
+          activity_type?: string
+          time_of_day?: string | null
+          duration_minutes?: number | null
+          calories?: number | null
+          avg_heart_rate?: number | null
+        }[]
       }
+
+      const results: ParsedResult[] = data.results ?? []
+
+      setDayGroups((prev) => {
+        // Drop the single blank starter group if we're about to populate from screenshots.
+        const base = prev.filter(
+          (g) =>
+            g.steps || g.goalProgressCalories || g.goalCalories || g.totalCalories ||
+            g.activityTimeMinutes || g.activities.length > 0
+        )
+        const next = [...base]
+
+        for (const r of results) {
+          const resolvedDate = resolveDateLabel(r.date_label)
+          const parsedActivities: ActivityEntry[] = r.activities.map((a) => ({
+            activityType: a.activity_type ?? '',
+            timeOfDay: a.time_of_day ?? '',
+            durationMinutes: a.duration_minutes != null ? String(a.duration_minutes) : '',
+            calories: a.calories != null ? String(a.calories) : '',
+            avgHeartRate: a.avg_heart_rate != null ? String(a.avg_heart_rate) : '',
+          }))
+
+          // Merge into an existing group only if we have a confidently resolved,
+          // matching date — otherwise each image gets its own group.
+          const existing = resolvedDate ? next.find((g) => g.date === resolvedDate) : undefined
+
+          if (existing) {
+            if (r.steps != null && !existing.steps) existing.steps = String(r.steps)
+            if (r.goal_progress_calories != null && !existing.goalProgressCalories)
+              existing.goalProgressCalories = String(r.goal_progress_calories)
+            if (r.goal_target_calories != null && !existing.goalCalories)
+              existing.goalCalories = String(r.goal_target_calories)
+            if (r.total_calories != null && !existing.totalCalories)
+              existing.totalCalories = String(r.total_calories)
+            if (r.activity_time_minutes != null && !existing.activityTimeMinutes)
+              existing.activityTimeMinutes = String(r.activity_time_minutes)
+            existing.activities.push(...parsedActivities)
+          } else {
+            next.push({
+              key: Math.random().toString(36).slice(2),
+              date: resolvedDate,
+              dateGuessLabel: r.date_label,
+              steps: r.steps != null ? String(r.steps) : '',
+              goalProgressCalories: r.goal_progress_calories != null ? String(r.goal_progress_calories) : '',
+              goalCalories: r.goal_target_calories != null ? String(r.goal_target_calories) : '',
+              totalCalories: r.total_calories != null ? String(r.total_calories) : '',
+              activityTimeMinutes: r.activity_time_minutes != null ? String(r.activity_time_minutes) : '',
+              activities: parsedActivities,
+            })
+          }
+        }
+
+        return next.length > 0 ? next : [emptyDayGroup(todayDateKey())]
+      })
 
       setSource('oura')
     } catch {
-      setScreenshotError("Couldn't read that screenshot. Try a clearer shot, or enter values manually.")
+      setScreenshotError("Couldn't read those screenshots. Try clearer shots, or enter values manually.")
     }
 
     setScanning(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  function updateActivity(index: number, field: keyof ActivityEntry, value: string) {
-    setActivities((prev) => prev.map((a, i) => (i === index ? { ...a, [field]: value } : a)))
+  function updateGroup(key: string, field: keyof DayGroup, value: string) {
+    setDayGroups((prev) => prev.map((g) => (g.key === key ? { ...g, [field]: value } : g)))
   }
 
-  function removeActivity(index: number) {
-    setActivities((prev) => prev.filter((_, i) => i !== index))
+  function removeGroup(key: string) {
+    setDayGroups((prev) => prev.filter((g) => g.key !== key))
+  }
+
+  function addGroup() {
+    setDayGroups((prev) => [...prev, emptyDayGroup(todayDateKey())])
+  }
+
+  function updateActivity(groupKey: string, index: number, field: keyof ActivityEntry, value: string) {
+    setDayGroups((prev) =>
+      prev.map((g) =>
+        g.key === groupKey
+          ? { ...g, activities: g.activities.map((a, i) => (i === index ? { ...a, [field]: value } : a)) }
+          : g
+      )
+    )
+  }
+
+  function removeActivity(groupKey: string, index: number) {
+    setDayGroups((prev) =>
+      prev.map((g) =>
+        g.key === groupKey ? { ...g, activities: g.activities.filter((_, i) => i !== index) } : g
+      )
+    )
+  }
+
+  function addActivity(groupKey: string) {
+    setDayGroups((prev) =>
+      prev.map((g) => (g.key === groupKey ? { ...g, activities: [...g.activities, emptyActivity()] } : g))
+    )
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+
+    if (dayGroups.some((g) => !g.date)) {
+      setError("One or more days couldn't be dated automatically — pick a date for each before saving.")
+      return
+    }
+
     setSaving(true)
 
     const {
@@ -141,36 +267,38 @@ export default function NewActivityPage() {
       return
     }
 
-    const hasSummaryData =
-      steps || goalProgressCalories || goalCalories || totalCalories || activityTimeMinutes
-
     const rows: Record<string, unknown>[] = []
 
-    if (hasSummaryData) {
-      rows.push({
-        user_id: user.id,
-        activity_date: activityDate,
-        source,
-        steps: steps ? Number(steps) : null,
-        active_calories: goalProgressCalories ? Number(goalProgressCalories) : null,
-        total_calories: totalCalories ? Number(totalCalories) : null,
-        goal_calories: goalCalories ? Number(goalCalories) : null,
-        activity_time_minutes: activityTimeMinutes ? Number(activityTimeMinutes) : null,
-      })
-    }
+    for (const g of dayGroups) {
+      const hasSummaryData =
+        g.steps || g.goalProgressCalories || g.goalCalories || g.totalCalories || g.activityTimeMinutes
 
-    for (const a of activities) {
-      if (!a.activityType) continue
-      rows.push({
-        user_id: user.id,
-        activity_date: activityDate,
-        source,
-        activity_type: a.activityType,
-        duration_minutes: a.durationMinutes ? Number(a.durationMinutes) : null,
-        active_calories: a.calories ? Number(a.calories) : null,
-        avg_heart_rate: a.avgHeartRate ? Number(a.avgHeartRate) : null,
-        started_at: a.timeOfDay ? combineDateAndTime(activityDate, a.timeOfDay) : null,
-      })
+      if (hasSummaryData) {
+        rows.push({
+          user_id: user.id,
+          activity_date: g.date,
+          source,
+          steps: g.steps ? Number(g.steps) : null,
+          active_calories: g.goalProgressCalories ? Number(g.goalProgressCalories) : null,
+          total_calories: g.totalCalories ? Number(g.totalCalories) : null,
+          goal_calories: g.goalCalories ? Number(g.goalCalories) : null,
+          activity_time_minutes: g.activityTimeMinutes ? Number(g.activityTimeMinutes) : null,
+        })
+      }
+
+      for (const a of g.activities) {
+        if (!a.activityType) continue
+        rows.push({
+          user_id: user.id,
+          activity_date: g.date,
+          source,
+          activity_type: a.activityType,
+          duration_minutes: a.durationMinutes ? Number(a.durationMinutes) : null,
+          active_calories: a.calories ? Number(a.calories) : null,
+          avg_heart_rate: a.avgHeartRate ? Number(a.avgHeartRate) : null,
+          started_at: a.timeOfDay ? combineDateAndTime(g.date, a.timeOfDay) : null,
+        })
+      }
     }
 
     if (rows.length === 0) {
@@ -214,11 +342,13 @@ export default function NewActivityPage() {
             disabled={scanning}
             className="w-full rounded-md bg-neutral-100 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-200 disabled:opacity-50"
           >
-            {scanning ? 'Reading screenshot…' : '📷 Import from Oura screenshot'}
+            {scanning ? 'Reading screenshots…' : '📷 Import from Oura screenshots'}
           </button>
           <p className="text-xs text-neutral-600">
-            Import the full Activity page — goal progress, total burn, activity time, steps, and
-            every listed activity all get captured. Select multiple screenshots at once if needed.
+            Select multiple screenshots at once — even from different days. Each one is read on
+            its own and its date is detected automatically (Today/Yesterday/a specific date), so
+            screenshots from the same day get merged and different days become separate entries
+            below. Double-check the detected dates before saving.
           </p>
           {screenshotError && (
             <p className="text-xs text-red-600" role="alert">
@@ -227,159 +357,195 @@ export default function NewActivityPage() {
           )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Date</label>
-            <input
-              type="date"
-              value={activityDate}
-              onChange={(e) => setActivityDate(e.target.value)}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="pt-2 border-t border-neutral-100 space-y-3">
-            <p className="text-xs font-medium text-neutral-700">Daily summary</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Steps</label>
-                <input
-                  type="number"
-                  value={steps}
-                  onChange={(e) => {
-                    setSteps(e.target.value)
-                    setSource('manual')
-                  }}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Goal progress (cal)
-                </label>
-                <input
-                  type="number"
-                  value={goalProgressCalories}
-                  onChange={(e) => {
-                    setGoalProgressCalories(e.target.value)
-                    setSource('manual')
-                  }}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Goal target (cal)
-                </label>
-                <input
-                  type="number"
-                  value={goalCalories}
-                  onChange={(e) => {
-                    setGoalCalories(e.target.value)
-                    setSource('manual')
-                  }}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Total burn (cal)
-                </label>
-                <input
-                  type="number"
-                  value={totalCalories}
-                  onChange={(e) => {
-                    setTotalCalories(e.target.value)
-                    setSource('manual')
-                  }}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-neutral-700 mb-1">
-                  Activity time (minutes)
-                </label>
-                <input
-                  type="number"
-                  value={activityTimeMinutes}
-                  onChange={(e) => {
-                    setActivityTimeMinutes(e.target.value)
-                    setSource('manual')
-                  }}
-                  className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-neutral-100 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-neutral-700">
-                Activities ({activities.length})
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setActivities((prev) => [...prev, emptyActivity()])
-                  setSource('manual')
-                }}
-                className="text-xs text-neutral-700 underline underline-offset-2"
-              >
-                + Add activity
-              </button>
-            </div>
-
-            {activities.map((a, i) => (
-              <div key={i} className="rounded-md border border-neutral-200 p-3 space-y-2">
-                <div className="flex items-center justify-between">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {dayGroups.map((g) => (
+            <div key={g.key} className="rounded-lg border border-neutral-200 bg-white p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">
+                    Date
+                    {g.dateGuessLabel && (
+                      <span className="text-xs text-neutral-500 font-normal">
+                        {' '}
+                        — detected &quot;{g.dateGuessLabel}&quot;
+                      </span>
+                    )}
+                  </label>
                   <input
-                    type="text"
-                    placeholder="Activity type (e.g. Swimming)"
-                    value={a.activityType}
-                    onChange={(e) => updateActivity(i, 'activityType', e.target.value)}
-                    className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm mr-2"
+                    type="date"
+                    value={g.date}
+                    onChange={(e) => updateGroup(g.key, 'date', e.target.value)}
+                    className={`w-full rounded-md border px-3 py-2 text-sm ${
+                      g.date ? 'border-neutral-300' : 'border-red-400'
+                    }`}
                   />
+                  {!g.date && (
+                    <p className="text-xs text-red-600 mt-1">Pick a date for this entry.</p>
+                  )}
+                </div>
+                {dayGroups.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => removeActivity(i)}
-                    className="text-xs text-red-600 underline underline-offset-2 shrink-0"
+                    onClick={() => removeGroup(g.key)}
+                    className="text-xs text-red-600 underline underline-offset-2 ml-3 shrink-0"
                   >
-                    Remove
+                    Remove day
                   </button>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Time (e.g. 8:17 AM)"
-                    value={a.timeOfDay}
-                    onChange={(e) => updateActivity(i, 'timeOfDay', e.target.value)}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Duration (min)"
-                    value={a.durationMinutes}
-                    onChange={(e) => updateActivity(i, 'durationMinutes', e.target.value)}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Calories"
-                    value={a.calories}
-                    onChange={(e) => updateActivity(i, 'calories', e.target.value)}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Avg heart rate"
-                    value={a.avgHeartRate}
-                    onChange={(e) => updateActivity(i, 'avgHeartRate', e.target.value)}
-                    className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                  />
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-neutral-100 space-y-3">
+                <p className="text-xs font-medium text-neutral-700">Daily summary</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">Steps</label>
+                    <input
+                      type="number"
+                      value={g.steps}
+                      onChange={(e) => {
+                        updateGroup(g.key, 'steps', e.target.value)
+                        setSource('manual')
+                      }}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Goal progress (cal)
+                    </label>
+                    <input
+                      type="number"
+                      value={g.goalProgressCalories}
+                      onChange={(e) => {
+                        updateGroup(g.key, 'goalProgressCalories', e.target.value)
+                        setSource('manual')
+                      }}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Goal target (cal)
+                    </label>
+                    <input
+                      type="number"
+                      value={g.goalCalories}
+                      onChange={(e) => {
+                        updateGroup(g.key, 'goalCalories', e.target.value)
+                        setSource('manual')
+                      }}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Total burn (cal)
+                    </label>
+                    <input
+                      type="number"
+                      value={g.totalCalories}
+                      onChange={(e) => {
+                        updateGroup(g.key, 'totalCalories', e.target.value)
+                        setSource('manual')
+                      }}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-neutral-700 mb-1">
+                      Activity time (minutes)
+                    </label>
+                    <input
+                      type="number"
+                      value={g.activityTimeMinutes}
+                      onChange={(e) => {
+                        updateGroup(g.key, 'activityTimeMinutes', e.target.value)
+                        setSource('manual')
+                      }}
+                      className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                    />
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="pt-2 border-t border-neutral-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-neutral-700">
+                    Activities ({g.activities.length})
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addActivity(g.key)
+                      setSource('manual')
+                    }}
+                    className="text-xs text-neutral-700 underline underline-offset-2"
+                  >
+                    + Add activity
+                  </button>
+                </div>
+
+                {g.activities.map((a, i) => (
+                  <div key={i} className="rounded-md border border-neutral-200 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <input
+                        type="text"
+                        placeholder="Activity type (e.g. Swimming)"
+                        value={a.activityType}
+                        onChange={(e) => updateActivity(g.key, i, 'activityType', e.target.value)}
+                        className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm mr-2"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeActivity(g.key, i)}
+                        className="text-xs text-red-600 underline underline-offset-2 shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Time (e.g. 8:17 AM)"
+                        value={a.timeOfDay}
+                        onChange={(e) => updateActivity(g.key, i, 'timeOfDay', e.target.value)}
+                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Duration (min)"
+                        value={a.durationMinutes}
+                        onChange={(e) => updateActivity(g.key, i, 'durationMinutes', e.target.value)}
+                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Calories"
+                        value={a.calories}
+                        onChange={(e) => updateActivity(g.key, i, 'calories', e.target.value)}
+                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Avg heart rate"
+                        value={a.avgHeartRate}
+                        onChange={(e) => updateActivity(g.key, i, 'avgHeartRate', e.target.value)}
+                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={addGroup}
+            className="w-full rounded-md border border-neutral-300 text-neutral-700 text-sm font-medium py-2 hover:bg-neutral-50"
+          >
+            + Add another day
+          </button>
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
@@ -392,7 +558,7 @@ export default function NewActivityPage() {
             disabled={saving}
             className="w-full rounded-md bg-neutral-900 text-white text-sm font-medium py-2 hover:bg-neutral-800 disabled:opacity-50"
           >
-            {saving ? 'Saving…' : 'Save entry'}
+            {saving ? 'Saving…' : `Save ${dayGroups.length > 1 ? `${dayGroups.length} days` : 'entry'}`}
           </button>
         </form>
       </div>

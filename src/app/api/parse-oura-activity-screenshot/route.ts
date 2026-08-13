@@ -1,33 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const EXTRACTION_PROMPT = `You are reading screenshots of Oura Ring (or similar wearable app) activity/exercise results. There may be multiple screenshots covering different sections of the same day — combine everything you see into one result.
+const EXTRACTION_PROMPT = `You are reading one or more screenshots of Oura Ring (or similar wearable app) activity/exercise results. Each image may be from a DIFFERENT day — do NOT merge them together. Process each image independently and return one result object per image, in the same order the images were provided.
 
-Extract the values EXACTLY as shown — do not estimate or infer anything not visible on screen. Capture EVERY category shown, including:
+For each image, extract the values EXACTLY as shown — do not estimate or infer anything not visible on screen. Capture EVERY category shown:
+- The date the screen is showing. Oura typically shows a relative label like "Today" or "Yesterday" as a selected tab, or a specific date/weekday if the person navigated to an earlier day. Report whatever text is shown exactly (e.g. "Today", "Yesterday", "Aug 5", "Monday"). If genuinely no date indicator is visible, use null.
 - Steps
 - Total Burn (total calories for the day)
 - Goal Progress (e.g. "936 / 450 Cal" — the first number is progress toward the goal, the second is the goal target itself)
 - Activity Time (total daily active/exercise time, e.g. "1h 16m")
 - EVERY individual activity/workout listed (e.g. Swimming, Strength training) — there may be more than one, including duplicates of the same type at different times. For each one capture: the activity name, the clock time it started (exactly as shown, e.g. "8:17 AM"), its duration, its calories, and its average heart rate if shown (use null if the heart rate is blank or shown as "–").
 
+If an image doesn't show legible activity data at all, still include an entry for it with all fields null and an empty activities array — the output array must have exactly one entry per input image, in order.
+
 Respond with ONLY a JSON object, no other text, no markdown fences, in exactly this shape:
 {
-  "steps": number or null,
-  "total_calories": number or null,
-  "goal_progress_calories": number or null,
-  "goal_target_calories": number or null,
-  "activity_time_minutes": number or null,
-  "activities": [
+  "results": [
     {
-      "activity_type": string,
-      "time_of_day": string or null (exactly as shown, e.g. "8:17 AM"),
-      "duration_minutes": number or null,
-      "calories": number or null,
-      "avg_heart_rate": number or null
+      "date_label": string or null,
+      "steps": number or null,
+      "total_calories": number or null,
+      "goal_progress_calories": number or null,
+      "goal_target_calories": number or null,
+      "activity_time_minutes": number or null,
+      "activities": [
+        {
+          "activity_type": string,
+          "time_of_day": string or null (exactly as shown, e.g. "8:17 AM"),
+          "duration_minutes": number or null,
+          "calories": number or null,
+          "avg_heart_rate": number or null
+        }
+      ]
     }
   ]
-}
-
-If the screenshot doesn't show a given category, leave it null. If no individual activities are visible, return an empty array for "activities". If nothing legible is found at all, return all fields null and an empty activities array.`
+}`
 
 export async function POST(request: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY
@@ -60,7 +66,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-5',
-        max_tokens: 1200,
+        max_tokens: 400 + images.length * 700,
         messages: [
           {
             role: 'user',
@@ -69,7 +75,14 @@ export async function POST(request: NextRequest) {
                 type: 'image',
                 source: { type: 'base64', media_type: img.mediaType || 'image/jpeg', data: img.base64 },
               })),
-              { type: 'text', text: EXTRACTION_PROMPT },
+              {
+                type: 'text',
+                text:
+                  images.length > 1
+                    ? `There are ${images.length} images above, in order (image 1 first, image ${images.length} last). ` +
+                      EXTRACTION_PROMPT
+                    : EXTRACTION_PROMPT,
+              },
             ],
           },
         ],
@@ -87,14 +100,21 @@ export async function POST(request: NextRequest) {
     const cleaned = rawText.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(cleaned)
 
-    const found =
-      parsed.steps != null ||
-      parsed.total_calories != null ||
-      parsed.goal_progress_calories != null ||
-      parsed.activity_time_minutes != null ||
-      (Array.isArray(parsed.activities) && parsed.activities.length > 0)
+    const results = Array.isArray(parsed.results) ? parsed.results : []
 
-    return NextResponse.json({ found, ...parsed, activities: parsed.activities ?? [] })
+    const found = results.some(
+      (r: { steps?: number | null; total_calories?: number | null; goal_progress_calories?: number | null; activity_time_minutes?: number | null; activities?: unknown[] }) =>
+        r.steps != null ||
+        r.total_calories != null ||
+        r.goal_progress_calories != null ||
+        r.activity_time_minutes != null ||
+        (Array.isArray(r.activities) && r.activities.length > 0)
+    )
+
+    return NextResponse.json({
+      found,
+      results: results.map((r: { activities?: unknown[] }) => ({ ...r, activities: r.activities ?? [] })),
+    })
   } catch {
     return NextResponse.json(
       { error: "Couldn't read that screenshot. Try a clearer, uncropped shot of the results screen." },
