@@ -79,6 +79,24 @@ export function toIsoDate(raw: unknown): string | null {
   const s = String(raw).trim()
   if (s === '') return null
 
+  // InBody's compact export format: YYYYMMDDHHMMSS (no separators at all),
+  // e.g. "20260819065201". Check this before the loose Date() fallback,
+  // since native parsing chokes on it.
+  const compact = s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/)
+  if (compact) {
+    const [, y, m, d, hh, mm] = compact
+    return new Date(
+      Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm)
+    ).toISOString()
+  }
+
+  // Same format but date-only: YYYYMMDD
+  const compactDate = s.match(/^(\d{4})(\d{2})(\d{2})$/)
+  if (compactDate) {
+    const [, y, m, d] = compactDate
+    return new Date(Number(y), Number(m) - 1, Number(d), 12, 0).toISOString()
+  }
+
   // YYYY-MM-DD or YYYY.MM.DD, optionally followed by a time
   const ymd = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/)
   if (ymd) {

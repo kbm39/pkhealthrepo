@@ -79,6 +79,12 @@ export default function ImportBodyMetricsPage() {
     built.sort((a, b) => b.recorded_at.localeCompare(a.recorded_at))
     setRows(built)
     setSkipped(dropped)
+
+    if (built.length === 0 && dropped > 0) {
+      setError(
+        `Found ${dropped} row${dropped === 1 ? '' : 's'} but couldn\u2019t read a valid date or measurement from any of them. Check the column mapping below.`
+      )
+    }
   }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
