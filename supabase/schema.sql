@@ -201,6 +201,7 @@ create table public.vitals (
   ecg_result text,
   -- glucose fields
   glucose_mg_dl numeric,
+  reading_context text check (reading_context in ('fasting','random')),
   created_at timestamptz not null default now()
 );
 create index idx_vitals_user_time on public.vitals (user_id, recorded_at, vital_type);
@@ -302,6 +303,26 @@ create table public.swim_logs (
 );
 create index idx_swim_logs_user_date on public.swim_logs (user_id, swim_date desc);
 
+-- ------------------------------------------------------------
+-- SHARE LINKS (read-only, unauthenticated access for a health
+-- professional. Token is looked up with the Supabase service role
+-- from the public /share/[token] route, bypassing RLS on purpose —
+-- RLS below only governs the owner's own management of these rows.)
+-- ------------------------------------------------------------
+create table public.share_links (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  token text not null unique,
+  label text,
+  sections text[] not null default array['body_metrics','vitals','workouts','sleep','activity','swim','meals'],
+  expires_at timestamptz,
+  revoked_at timestamptz,
+  last_viewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index idx_share_links_token on public.share_links (token);
+create index idx_share_links_user on public.share_links (user_id, created_at desc);
+
 -- ============================================================
 -- ROW LEVEL SECURITY
 -- ============================================================
@@ -339,6 +360,8 @@ create policy "own medication logs" on public.medication_logs for all using (aut
 create policy "own recipes" on public.recipes for all using (auth.uid() = user_id);
 create policy "own activity logs" on public.activity_logs for all using (auth.uid() = user_id);
 create policy "own swim logs" on public.swim_logs for all using (auth.uid() = user_id);
+alter table public.share_links enable row level security;
+create policy "own share links" on public.share_links for all using (auth.uid() = user_id);
 
 -- `foods` table is shared reference data — readable by all authenticated users,
 -- but only the creator (or service role) can edit their own manual entries.

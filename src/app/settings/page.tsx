@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
+import ShareLinksSection from '@/components/ShareLinksSection'
 
 const DIET_OPTIONS = [
   { value: '', label: 'None' },
@@ -123,6 +124,8 @@ export default function SettingsPage() {
             {saving ? 'Saving…' : 'Save'}
           </button>
         </section>
+
+        <ShareLinksSection />
       </div>
     </main>
   )
