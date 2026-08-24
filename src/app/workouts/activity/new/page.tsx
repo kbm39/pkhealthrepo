@@ -240,27 +240,57 @@ export default function NewActivityPage() {
       return
     }
 
+    const dates = Array.from(new Set(dayGroups.map((g) => g.date))).filter(Boolean)
+    const { data: existing } = await supabase
+      .from('activity_logs')
+      .select('activity_date, activity_type, started_at')
+      .eq('user_id', user.id)
+      .in('activity_date', dates)
+
+    // Match on date + clock time (ignoring exact calorie/type text, which can shift
+    // between scans of the same real activity) so re-importing an overlapping range
+    // doesn't silently create duplicate rows.
+    const existingActivityKeys = new Set(
+      (existing ?? [])
+        .filter((e) => e.started_at)
+        .map((e) => `${e.activity_date}::${new Date(e.started_at as string).toISOString()}`)
+    )
+    const existingSummaryDates = new Set(
+      (existing ?? []).filter((e) => e.activity_type == null && !e.started_at).map((e) => e.activity_date)
+    )
+
     const rows: Record<string, unknown>[] = []
+    let skippedCount = 0
 
     for (const g of dayGroups) {
       const hasSummaryData =
         g.steps || g.goalProgressCalories || g.goalCalories || g.totalCalories || g.activityTimeMinutes
 
       if (hasSummaryData) {
-        rows.push({
-          user_id: user.id,
-          activity_date: g.date,
-          source,
-          steps: g.steps ? Number(g.steps) : null,
-          active_calories: g.goalProgressCalories ? Number(g.goalProgressCalories) : null,
-          total_calories: g.totalCalories ? Number(g.totalCalories) : null,
-          goal_calories: g.goalCalories ? Number(g.goalCalories) : null,
-          activity_time_minutes: g.activityTimeMinutes ? Number(g.activityTimeMinutes) : null,
-        })
+        if (existingSummaryDates.has(g.date)) {
+          skippedCount++
+        } else {
+          rows.push({
+            user_id: user.id,
+            activity_date: g.date,
+            source,
+            steps: g.steps ? Number(g.steps) : null,
+            active_calories: g.goalProgressCalories ? Number(g.goalProgressCalories) : null,
+            total_calories: g.totalCalories ? Number(g.totalCalories) : null,
+            goal_calories: g.goalCalories ? Number(g.goalCalories) : null,
+            activity_time_minutes: g.activityTimeMinutes ? Number(g.activityTimeMinutes) : null,
+          })
+        }
       }
 
       for (const a of g.activities) {
         if (!a.activityType) continue
+        const startedAt = a.timeOfDay ? combineDateAndTime(g.date, a.timeOfDay) : null
+        const key = startedAt ? `${g.date}::${new Date(startedAt).toISOString()}` : null
+        if (key && existingActivityKeys.has(key)) {
+          skippedCount++
+          continue
+        }
         rows.push({
           user_id: user.id,
           activity_date: g.date,
@@ -269,9 +299,17 @@ export default function NewActivityPage() {
           duration_minutes: a.durationMinutes ? Number(a.durationMinutes) : null,
           active_calories: a.calories ? Number(a.calories) : null,
           avg_heart_rate: a.avgHeartRate ? Number(a.avgHeartRate) : null,
-          started_at: a.timeOfDay ? combineDateAndTime(g.date, a.timeOfDay) : null,
+          started_at: startedAt,
         })
       }
+    }
+
+    if (rows.length === 0 && skippedCount > 0) {
+      setError(
+        `All ${skippedCount} ${skippedCount === 1 ? 'entry matches' : 'entries match'} something already in your history for ${skippedCount === 1 ? 'that day/time' : 'those days/times'} — nothing new to save.`
+      )
+      setSaving(false)
+      return
     }
 
     if (rows.length === 0) {
@@ -287,6 +325,12 @@ export default function NewActivityPage() {
     if (error) {
       setError(error.message)
       return
+    }
+
+    if (skippedCount > 0) {
+      window.alert(
+        `Saved. Skipped ${skippedCount} ${skippedCount === 1 ? 'entry' : 'entries'} that matched something already in your history at the same date/time.`
+      )
     }
 
     router.push('/workouts/activity')
