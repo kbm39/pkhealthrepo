@@ -26,9 +26,15 @@ export default async function ActivityPage() {
     .select('*')
     .eq('user_id', user.id)
     .order('activity_date', { ascending: false })
+    .order('started_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
     .limit(60)
 
+  // Batch screenshot imports insert several rows for the same day in one statement,
+  // so Postgres gives them an identical `created_at` — that alone isn't a reliable
+  // tiebreaker. `started_at` (the actual detected clock time) is, so entries with a
+  // real timestamp are sorted by it; only day-summary rows (no started_at) fall back
+  // to insertion order.
   const allEntries = entries ?? []
   const latest = allEntries[0] ?? null
 

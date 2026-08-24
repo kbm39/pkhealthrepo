@@ -6,7 +6,19 @@ import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
 import { resizeImageToBase64 } from '@/lib/image-utils'
 import { todayDateKey } from '@/components/LocalDateTime'
-import { resolveDateLabel, combineDateAndTime } from '@/lib/screenshot-date'
+import { resolveDateLabel, combineDateAndTime, parseTimeOfDayToMinutes } from '@/lib/screenshot-date'
+
+/** Sorts a day's detected activities chronologically by clock time; undated ones sink to the end. */
+function sortActivitiesByTime(activities: ActivityEntry[]): ActivityEntry[] {
+  return [...activities].sort((a, b) => {
+    const am = parseTimeOfDayToMinutes(a.timeOfDay)
+    const bm = parseTimeOfDayToMinutes(b.timeOfDay)
+    if (am == null && bm == null) return 0
+    if (am == null) return 1
+    if (bm == null) return -1
+    return am - bm
+  })
+}
 
 interface ActivityEntry {
   activityType: string
@@ -139,7 +151,7 @@ export default function NewActivityPage() {
               existing.totalCalories = String(r.total_calories)
             if (r.activity_time_minutes != null && !existing.activityTimeMinutes)
               existing.activityTimeMinutes = String(r.activity_time_minutes)
-            existing.activities.push(...parsedActivities)
+            existing.activities = sortActivitiesByTime([...existing.activities, ...parsedActivities])
           } else {
             next.push({
               key: Math.random().toString(36).slice(2),
@@ -150,10 +162,14 @@ export default function NewActivityPage() {
               goalCalories: r.goal_target_calories != null ? String(r.goal_target_calories) : '',
               totalCalories: r.total_calories != null ? String(r.total_calories) : '',
               activityTimeMinutes: r.activity_time_minutes != null ? String(r.activity_time_minutes) : '',
-              activities: parsedActivities,
+              activities: sortActivitiesByTime(parsedActivities),
             })
           }
         }
+
+        // Keep day groups themselves in date order (newest last isn't required here —
+        // just make sure they're not left in arbitrary screenshot-selection order).
+        next.sort((a, b) => (a.date && b.date ? (a.date < b.date ? -1 : a.date > b.date ? 1 : 0) : 0))
 
         return next.length > 0 ? next : [emptyDayGroup(todayDateKey())]
       })

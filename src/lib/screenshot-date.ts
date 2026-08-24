@@ -44,6 +44,18 @@ export function resolveDateLabel(label: string | null): string {
   return ''
 }
 
+/** Parses a "8:17 AM" style clock time into minutes-since-midnight, or null if unparseable. */
+export function parseTimeOfDayToMinutes(timeOfDay: string): number | null {
+  const match = timeOfDay.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!match) return null
+  let hours = parseInt(match[1], 10)
+  const minutes = parseInt(match[2], 10)
+  const meridiem = match[3].toUpperCase()
+  if (meridiem === 'PM' && hours !== 12) hours += 12
+  if (meridiem === 'AM' && hours === 12) hours = 0
+  return hours * 60 + minutes
+}
+
 /** Combines a YYYY-MM-DD date with a "8:17 AM" style time into an ISO string, or null if unparseable. */
 export function combineDateAndTime(dateKey: string, timeOfDay: string): string | null {
   const match = timeOfDay.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
