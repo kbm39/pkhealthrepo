@@ -234,7 +234,18 @@ export default function NewSleepPage() {
 
   function updateGroup(key: string, field: keyof SleepGroup, value: string) {
     setSleepGroups((prev) =>
-      prev.map((g) => (g.key === key ? { ...g, [field]: value, source: 'manual' } : g))
+      prev.map((g) =>
+        g.key === key
+          ? {
+              ...g,
+              [field]: value,
+              // Picking a date (often required when a screenshot's on-screen date
+              // couldn't be auto-resolved) isn't an override of the device data —
+              // only demote to 'manual' when an actual health-data field is edited.
+              source: field === 'date' ? g.source : 'manual',
+            }
+          : g
+      )
     )
   }
 

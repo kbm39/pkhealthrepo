@@ -179,8 +179,18 @@ create table public.sleep_logs (
   sleep_score integer,
   avg_heart_rate numeric,
   avg_respiratory_rate numeric,
+  respiratory_rate_min numeric,
+  respiratory_rate_max numeric,
   snoring_minutes integer,
   apnea_flag boolean,                     -- irregular breathing events flagged
+  hrv_first_90_ms numeric,
+  hrv_last_90_ms numeric,
+  sleep_latency_minutes integer,          -- "time to sleep"
+  time_to_get_up_minutes integer,
+  interruptions_count integer,
+  regularity_rating text,                 -- e.g. "Good", as shown on device app
+  depth_rating text,
+  breathing_quality_assessment text,
   created_at timestamptz not null default now()
 );
 create index idx_sleep_logs_user_date on public.sleep_logs (user_id, sleep_date);
