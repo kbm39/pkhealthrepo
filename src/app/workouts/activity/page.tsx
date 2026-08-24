@@ -114,12 +114,17 @@ export default async function ActivityPage() {
                       {entry.duration_minutes != null && ` · ${entry.duration_minutes} min`}
                     </span>
                     <span className="text-xs text-neutral-600">
-                      {entry.started_at
-                        ? new Date(entry.started_at).toLocaleTimeString([], {
+                      {formatDate(entry.activity_date)}
+                      {entry.started_at && (
+                        <>
+                          {' '}
+                          ·{' '}
+                          {new Date(entry.started_at).toLocaleTimeString([], {
                             hour: 'numeric',
                             minute: '2-digit',
-                          })
-                        : formatDate(entry.activity_date)}{' '}
+                          })}
+                        </>
+                      )}{' '}
                       · {entry.source}
                     </span>
                   </div>
