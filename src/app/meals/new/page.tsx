@@ -24,6 +24,19 @@ interface FoodBankItem {
   serving_unit: string
 }
 
+interface FoodSearchResult {
+  name: string
+  brand: string | null
+  servingSize: string
+  calories: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fat_g: number | null
+  fiber_g: number | null
+  sugar_g: number | null
+  sodium_mg: number | null
+}
+
 export default function NewMealPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -43,6 +56,11 @@ export default function NewMealPage() {
 
   const [scanningLabel, setScanningLabel] = useState(false)
   const [labelScanError, setLabelScanError] = useState<string | null>(null)
+
+  const [searchingFood, setSearchingFood] = useState(false)
+  const [foodSearchError, setFoodSearchError] = useState<string | null>(null)
+  const [foodSearchResults, setFoodSearchResults] = useState<FoodSearchResult[]>([])
+  const [showFoodSearchResults, setShowFoodSearchResults] = useState(false)
 
   const [searchTerm, setSearchTerm] = useState('')
   const [foodBank, setFoodBank] = useState<FoodBankItem[]>([])
@@ -93,6 +111,48 @@ export default function NewMealPage() {
 
     setScanningLabel(false)
     if (labelInputRef.current) labelInputRef.current.value = ''
+  }
+
+  async function handleFoodSearch() {
+    const q = name.trim()
+    if (q.length < 2) return
+
+    setSearchingFood(true)
+    setFoodSearchError(null)
+    setFoodSearchResults([])
+    setShowFoodSearchResults(false)
+
+    try {
+      const res = await fetch(`/api/food-search?q=${encodeURIComponent(q)}`)
+      const data = await res.json()
+
+      if (!res.ok) {
+        setFoodSearchError(data.error || 'Search failed. Try again or enter values manually.')
+      } else if (!data.results || data.results.length === 0) {
+        setFoodSearchError('No matches found. Try a different search or enter values manually.')
+      } else {
+        setFoodSearchResults(data.results)
+        setShowFoodSearchResults(true)
+      }
+    } catch {
+      setFoodSearchError('Search failed. Try again or enter values manually.')
+    }
+
+    setSearchingFood(false)
+  }
+
+  function selectFoodSearchResult(item: FoodSearchResult) {
+    setName(item.name)
+    setCalories(item.calories != null ? String(item.calories) : '')
+    setProtein(item.protein_g != null ? String(item.protein_g) : '')
+    setCarbs(item.carbs_g != null ? String(item.carbs_g) : '')
+    setFat(item.fat_g != null ? String(item.fat_g) : '')
+    setFiber(item.fiber_g != null ? String(item.fiber_g) : '')
+    setSugar(item.sugar_g != null ? String(item.sugar_g) : '')
+    setSodium(item.sodium_mg != null ? String(item.sodium_mg) : '')
+    setShowFoodSearchResults(false)
+    setFoodSearchResults([])
+    setFoodSearchError(null)
   }
 
   useEffect(() => {
@@ -151,6 +211,9 @@ export default function NewMealPage() {
     setFiber(item.fiber_g != null ? String(item.fiber_g) : '')
     setSugar(item.sugar_g != null ? String(item.sugar_g) : '')
     setSodium(item.sodium_mg != null ? String(item.sodium_mg) : '')
+    setShowFoodSearchResults(false)
+    setFoodSearchResults([])
+    setFoodSearchError(null)
   }
 
   function clearSelection() {
@@ -163,6 +226,9 @@ export default function NewMealPage() {
     setFiber('')
     setSugar('')
     setSodium('')
+    setShowFoodSearchResults(false)
+    setFoodSearchResults([])
+    setFoodSearchError(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -360,10 +426,52 @@ export default function NewMealPage() {
               type="text"
               required
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                setShowFoodSearchResults(false)
+                setFoodSearchError(null)
+              }}
               disabled={!!selectedFoodId}
               className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm disabled:bg-neutral-100"
             />
+
+            {!selectedFoodId && (
+              <div className="mt-2 space-y-2">
+                <button
+                  type="button"
+                  onClick={handleFoodSearch}
+                  disabled={searchingFood || name.trim().length < 2}
+                  className="text-xs text-neutral-700 underline underline-offset-2 disabled:opacity-50 disabled:no-underline"
+                >
+                  {searchingFood ? 'Looking up nutrition…' : '🔎 Look up nutrition for this food'}
+                </button>
+                {foodSearchError && (
+                  <p className="text-xs text-red-600" role="alert">
+                    {foodSearchError}
+                  </p>
+                )}
+                {showFoodSearchResults && foodSearchResults.length > 0 && (
+                  <ul className="rounded-md border border-neutral-200 divide-y divide-neutral-100 max-h-52 overflow-y-auto">
+                    {foodSearchResults.map((item, i) => (
+                      <li key={i}>
+                        <button
+                          type="button"
+                          onClick={() => selectFoodSearchResult(item)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-50"
+                        >
+                          <div className="font-medium text-neutral-900">{item.name}</div>
+                          <div className="text-xs text-neutral-500">
+                            {item.brand ? `${item.brand} · ` : ''}
+                            {item.calories != null ? `${Math.round(item.calories)} cal` : '— cal'} per{' '}
+                            {item.servingSize}
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
