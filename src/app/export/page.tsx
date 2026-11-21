@@ -4,6 +4,7 @@ import { useState } from 'react'
 import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase/client'
 import HomeLink from '@/components/HomeLink'
+import DailyReportExport from '@/components/DailyReportExport'
 
 type Row = Record<string, unknown>
 
@@ -287,6 +288,7 @@ export default function ExportPage() {
       <div className="mx-auto w-full max-w-md space-y-6">
         <HomeLink />
         <h1 className="text-2xl font-semibold text-neutral-900">Export data</h1>
+        <DailyReportExport />
 
         <section className="rounded-lg border border-neutral-200 bg-white p-5 space-y-4">
           <p className="text-sm text-neutral-700">
